@@ -27,8 +27,9 @@ body{background:var(--white);color:var(--text);font-family:var(--sans);font-size
 }
 .nav-left{display:flex;align-items:center;gap:20px;}
 .nav-logo{cursor:pointer;display:flex;align-items:center;gap:10px;}
-.logo-text{font-size:clamp(18px, 4vw, 22px);font-weight:800;color:var(--blue);letter-spacing:-0.5px;} /* ⚠️ 加入 clamp 自適應縮放 */
-.logo-sub-text{font-size:clamp(10px, 2.5vw, 12px);font-weight:500;color:var(--text-muted);} /* ⚠️ 加入 clamp 自適應縮放 */
+/* Logo 自適應縮放 */
+.logo-text{font-size:clamp(18px, 4vw, 22px);font-weight:800;color:var(--blue);letter-spacing:-0.5px;} 
+.logo-sub-text{font-size:clamp(10px, 2.5vw, 12px);font-weight:500;color:var(--text-muted);}
 
 .nav-hamburger{
   background:none;border:none;cursor:pointer;
@@ -41,14 +42,14 @@ body{background:var(--white);color:var(--text);font-family:var(--sans);font-size
 /* 導覽列按鈕區塊 */
 .nav-right{display:flex;align-items:center;gap:10px;}
 
-/* ⚠️ 按鈕加入 clamp() 實現文字自適應縮放 */
+/* 按鈕加入 clamp() 實現文字自適應縮放 */
 .btn-outline-pill{
   padding:clamp(6px, 1.5vw, 9px) clamp(14px, 3vw, 22px); 
   background:transparent;color:var(--blue);
   border:1.5px solid var(--blue);
   border-radius:24px;
   font-family:var(--sans);
-  font-size:clamp(13px, 2.5vw, 15px); /* 文字大小隨螢幕變化 */
+  font-size:clamp(13px, 2.5vw, 15px);
   font-weight:500;
   cursor:pointer;transition:all .15s;white-space:nowrap;
 }
@@ -60,7 +61,7 @@ body{background:var(--white);color:var(--text);font-family:var(--sans);font-size
   border:1.5px solid var(--blue);
   border-radius:24px;
   font-family:var(--sans);
-  font-size:clamp(13px, 2.5vw, 15px); /* 文字大小隨螢幕變化 */
+  font-size:clamp(13px, 2.5vw, 15px);
   font-weight:600;
   cursor:pointer;transition:all .15s;white-space:nowrap;
 }
@@ -162,7 +163,6 @@ body{background:var(--white);color:var(--text);font-family:var(--sans);font-size
   border-radius:50%;background:rgba(0,102,204,.5);
 }
 
-
 /* Hero overlay content (top-left text) */
 .hero-overlay-text{
   position:absolute;top:32px;left:40px;z-index:3;
@@ -221,16 +221,46 @@ body{background:var(--white);color:var(--text);font-family:var(--sans);font-size
 
 /* ══ DASHBOARD ══ */
 #page-dashboard{background:var(--gray-50);min-height:100vh;padding-top:64px;}
+
+/* ── 修正後的儀表板次導覽列 (Dash Subbar) ── */
 .dash-subbar{
-  background:var(--white);border-bottom:1px solid var(--border);
-  height:48px;padding:0 28px;
-  display:flex;align-items:center;justify-content:space-between;
+  background:var(--white);
+  border-bottom:1px solid var(--border);
+  min-height:48px; 
+  padding:10px 28px; 
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
 }
-.bc2{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--text-muted);}
+.bc2{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  font-size:15px;
+  color:var(--text-muted);
+}
 .bc2 a{color:var(--blue);cursor:pointer;font-weight:500;text-decoration:none;}
 .bc2 strong{color:var(--text);font-weight:500;}
-.dtags{display:flex;gap:8px;}
-.dtag{font-size:12px;color:var(--text-muted);padding:3px 10px;background:var(--gray-50);border:1px solid var(--border);border-radius:3px;letter-spacing:1px;}
+
+.dtags{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+}
+.dtag{
+  font-size:12px;
+  color:var(--text-muted);
+  padding:3px 10px;
+  background:var(--gray-50);
+  border:1px solid var(--border);
+  border-radius:3px;
+  letter-spacing:1px;
+  white-space:nowrap;
+}
 .dtag.live{color:var(--safe);border-color:var(--safe-bd);background:var(--safe-bg);}
 
 .dash-layout{display:grid;grid-template-columns:288px 1fr;min-height:calc(100vh - 64px - 48px);}
@@ -345,6 +375,7 @@ hr.dv{border:none;border-top:1px solid var(--border);}
 .afoot{background:var(--gray-800);padding:24px 28px;display:flex;justify-content:space-between;align-items:center;}
 .afb{font-size:12px;font-weight:600;color:rgba(255,255,255,.35);letter-spacing:1px;}
 .afc{font-size:11px;color:rgba(255,255,255,.2);}
+
 /* ══════════════════════════════════════════
    v3.1 MOBILE RWD — 全面修正
    Breakpoints: 768px / 576px
@@ -397,13 +428,10 @@ hr.dv{border:none;border-top:1px solid var(--border);}
     transition: all 0.2s;
   }
   
-  /* ⚠️ 如果您希望在手機版依然顯示導覽列按鈕，請註解掉這行 */
-  /* .nav-right { display: none !important; } */
-
-  /* ⚠️ 讓手機版選單內的按鈕文字更大、更好按 */
+  /* 讓手機版選單內的按鈕文字更大、更好按 */
   .nav-right {
       display: flex !important;
-      flex-wrap: wrap; /* 允許換行 */
+      flex-wrap: wrap; 
       gap: 6px;
   }
 
@@ -485,6 +513,17 @@ hr.dv{border:none;border-top:1px solid var(--border);}
     flex-direction: column !important;
     min-height: unset;
   }
+  
+  /* ⚠️ 修正：手機版次導覽列上下排列不破版 */
+  .dash-subbar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .bc2 { font-size: 14px; }
+  .dtag { font-size: 11px; padding: 4px 8px; }
+
   .sidebar {
     width: 100% !important;
     max-height: 60vh;
@@ -549,6 +588,5 @@ hr.dv{border:none;border-top:1px solid var(--border);}
   .tech-grid      { grid-template-columns: 1fr 1fr !important; }
   .sidebar        { max-height: 55vh; }
   .breadcrumb-bar { padding: 10px 12px; }
-  .dash-subbar    { padding: 0 12px; font-size: 13px; }
   .crm-quad-grid  { grid-template-columns: 1fr 1fr !important; }
 }
