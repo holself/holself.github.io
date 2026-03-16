@@ -196,7 +196,6 @@ function updateModalRadarChart(data) {
 // ── Check live model status and update badge ──
 async function checkModelStatus() {
   try {
-    // ⚠️ 修正：加上 API_BASE_URL
     const res = await fetch(`${API_BASE_URL}/api/status`);
     const data = await res.json();
     const isLive = data.model_loaded === true;
@@ -290,7 +289,6 @@ async function updateAll() {
     if(valBalance) valBalance.textContent = balance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
     try {
-        // ⚠️ 修正：加上 API_BASE_URL
         const response = await fetch(`${API_BASE_URL}/api/predict`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -377,7 +375,6 @@ async function uploadCSV() {
         const timeoutId = setTimeout(() => controller.abort(), 60000); 
         let response;
         try {
-            // ⚠️ 修正：加上 API_BASE_URL
             response = await fetch(`${API_BASE_URL}/api/predict_batch`, { method: 'POST', body: formData, signal: controller.signal });
         } finally {
             clearTimeout(timeoutId);
@@ -659,20 +656,68 @@ function finalizeMCS(results,meanLoss,n,animate,btn,pw,st){
   if(animate){btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i> 執行模擬';pw.style.display='none';if(st){st.textContent=`✓ ${n.toLocaleString()} 次完成`;setTimeout(()=>st.textContent='',3000);}}
 }
 
+// ── 匯出批次結果為 CSV (強化 16 宮格催收策略版) ──
 function exportBatchCSV() {
-  if (!batchDataCache.length) { showInlineError('尚無預測結果可匯出'); return; }
-  const headers = ['客戶ID','信用額度','年齡','違約機率(%)','欠款餘額','風險層級'];
+  if (!batchDataCache.length) { 
+    showInlineError('尚無預測結果可匯出'); 
+    return; 
+  }
+
+  // 1. 擴充表頭，加入「對應矩陣」與「建議催收行動」
+  const headers = [
+    '客戶ID', 
+    '信用額度', 
+    '年齡', 
+    '違約機率(%)', 
+    '最新欠款餘額', 
+    '風險層級(模型預測)', 
+    '資產層級(業務規則)', 
+    '16宮格矩陣落點', 
+    'AI建議催收行動'
+  ];
+
   const rows = batchDataCache.map(d => {
     const prob = d.PROBABILITY;
-    const level = prob >= 75 ? '高風險' : prob >= 50 ? '中高風險' : prob >= 25 ? '中低風險' : '低風險';
-    return [d.ID, d.LIMIT_BAL, d.AGE, prob, d.BALANCE.toFixed(0), level].join(',');
+    const bal = d.BALANCE;
+
+    // 2. 判斷風險層級 (Y軸)
+    const riskCode = prob >= 75 ? 'h' : prob >= 50 ? 'mh' : prob >= 25 ? 'ml' : 'l';
+    const riskText = prob >= 75 ? '高風險' : prob >= 50 ? '中高風險' : prob >= 25 ? '中低風險' : '低風險';
+
+    // 3. 判斷資產餘額層級 (X軸) - 依照原有的切分邏輯
+    const amtCode = bal >= 62242 ? 'h' : bal >= 18550 ? 'mh' : bal >= 745 ? 'ml' : 'l';
+    const amtText = bal >= 62242 ? '高金額' : bal >= 18550 ? '中高金額' : bal >= 745 ? '中低金額' : '低金額';
+
+    // 4. 取得 16 宮格對應策略文案 (對應到您定義的 qInfo)
+    const strategy = qInfo[`${riskCode}_${amtCode}`] || { title: '未定義', action: '無對應策略' };
+
+    // 5. 組合單行資料，確保文字不會因逗號而跑版 (用雙引號包覆)
+    return [
+      d.ID,
+      d.LIMIT_BAL,
+      d.AGE,
+      prob,
+      bal.toFixed(0),
+      riskText,
+      amtText,
+      `"${strategy.title}"`,  // 例如: "高風險 × 高金額"
+      `"${strategy.action}"`  // 例如: "法務強勢催收"
+    ].join(',');
   });
+
+  // 6. 組合並觸發下載
   const csv = [headers.join(','), ...rows].join('\n');
+  
+  // 加入 \uFEFF 是為了確保 Excel 打開時中文不會變成亂碼 (BOM)
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url;
-  a.download = 'CRIP_batch_results_' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click(); URL.revokeObjectURL(url);
+  const a = document.createElement('a'); 
+  a.href = url;
+  
+  // 檔名加上當天日期，方便版本控管
+  a.download = 'CRIP_16宮格催收策略派工單_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); 
+  URL.revokeObjectURL(url);
 }
 
 let batchSortDir = -1; 
