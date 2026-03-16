@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信用風險損失整合分析系統 — 信守風控 CRIP</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Design tokens ── */
+:root {
+  --ink: #0a0f1e;
+  --ink2: #1e2d45;
+  --silver: #8a95a8;
+  --line: #e2e6ed;
+  --bg: #f4f6fa;
+  --white: #ffffff;
+  --blue: #0055cc;
+  --blue-lt: #e8f0ff;
+  --gold: #c9970a;
+  --gold-lt: #fff8e1;
+  --red: #c0392b;
+  --red-lt: #fdeaea;
+  --green: #0a6e3f;
+  --green-lt: #e8f7f0;
+  --amber: #a84f00;
+  --amber-lt: #fff3e0;
+  --mono: 'IBM Plex Mono', monospace;
+  --display: 'Syne', sans-serif;
+  --body: 'Inter', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--body); background: var(--bg); color: var(--ink); font-size: 16px; }
+
+/* ── Page wrapper ── */
+.mc-wrap { margin-top: 64px; min-height: calc(100vh - 64px); }
+
+/* ── Sub-header ── */
+.mc-header {
+  background: var(--ink);
+  color: #fff;
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 2px solid #1e3a5f;
+}
+.mc-header-left h1 {
+  font-family: var(--display);
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mc-header-left p {
+  font-size: 0.92rem;
+  color: #7a8fa8;
+  margin-top: 3px;
+  font-family: var(--mono);
+  letter-spacing: 0.5px;
+}
+.mc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  letter-spacing: 1px;
+  font-weight: 600;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+.mb-live { background: rgba(10,110,63,0.15); color: #4ade80; border-color: rgba(74,222,128,0.3); }
+.mb-sims { background: rgba(0,85,204,0.15); color: #60a5fa; border-color: rgba(96,165,250,0.3); }
+
+/* ── Breadcrumb ── */
+.mc-breadcrumb {
+  padding: 9px 32px;
+  font-size: 12px;
+  color: var(--silver);
+  background: var(--white);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mc-breadcrumb a { color: var(--blue); text-decoration: none; }
+.mc-breadcrumb a:hover { text-decoration: underline; }
+
+/* ── Dashboard grid ── */
+.mc-body { max-width: 1440px; margin: 0 auto; padding: 24px 28px; }
+
+/* ── KPI row ── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.kpi-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.kpi-blue::before { background: var(--blue); }
+.kpi-gold::before { background: var(--gold); }
+.kpi-red::before { background: var(--red); }
+.kpi-green::before { background: var(--green); }
+.kpi-amber::before { background: var(--amber); }
+.kpi-label {
+  font-family: var(--mono);
+  font-size: 0.96rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--silver);
+  margin-bottom: 8px;
+}
+.kpi-value {
+  font-family: var(--mono);
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--ink);
+}
+.kpi-value .kpi-unit {
+  font-size: 0.88rem;
+  font-weight: 400;
+  font-family: var(--mono);
+  color: var(--silver);
+  letter-spacing: 0;
+  margin-left: 3px;
+}
+.kpi-sub {
+  font-size: 0.86rem;
+  color: var(--silver);
+  margin-top: 5px;
+  font-family: var(--mono);
+}
+
+/* ── Main panels ── */
+.panel-row {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.panel-row-2 { grid-template-columns: 1fr 1fr; }
+.panel-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.panel-row-12 { grid-template-columns: 1fr 2fr; }
+.panel-row-21 { grid-template-columns: 2fr 1fr; }
+
+.panel {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.panel-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.panel-head-left { display: flex; align-items: center; gap: 10px; }
+.panel-bar { width: 3px; height: 18px; border-radius: 2px; background: var(--blue); flex-shrink: 0; }
+.panel-bar.gold { background: var(--gold); }
+.panel-bar.red { background: var(--red); }
+.panel-bar.green { background: var(--green); }
+.panel-bar.amber { background: var(--amber); }
+.panel-title {
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0px;
+}
+.panel-sub {
+  font-size: 0.84rem;
+  font-family: var(--mono);
+  color: var(--silver);
+  letter-spacing: 0.5px;
+}
+.panel-body { padding: 18px; }
+.chart-wrap { position: relative; }
+
+/* ── Model metrics ── */
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.metric-item {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 14px 16px;
+  text-align: center;
+  border: 1px solid var(--line);
+}
+.metric-name {
+  font-family: var(--mono);
+  font-size: 0.96rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--silver);
+  margin-bottom: 6px;
+}
+.metric-val {
+  font-family: var(--mono);
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.metric-val.auc { color: var(--blue); }
+.metric-val.rec { color: var(--green); }
+.metric-val.pre { color: var(--gold); }
+.metric-val.acc { color: var(--amber); }
+
+/* confusion matrix */
+.cm-grid {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 4px;
+  margin-top: 16px;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+}
+.cm-label { display: flex; align-items: center; justify-content: center; color: var(--silver); font-size: 0.78rem; letter-spacing: 0.5px; padding: 4px; }
+.cm-cell {
+  border-radius: 5px;
+  padding: 12px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+.cm-tp { background: var(--green-lt); color: var(--green); border: 1px solid #9fd4b8; }
+.cm-fn { background: var(--amber-lt); color: var(--amber); border: 1px solid #ffd0a0; }
+.cm-fp { background: var(--amber-lt); color: var(--amber); border: 1px solid #ffd0a0; }
+.cm-tn { background: var(--green-lt); color: var(--green); border: 1px solid #9fd4b8; }
+.cm-caption { font-size: 0.75rem; color: var(--silver); text-align: center; }
+
+/* ── Quadrant legend ── */
+.q-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.q-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 5px;
+  border: 1px solid;
+  font-size: 0.92rem;
+}
+.q-hvlr { background: var(--blue-lt); border-color: #b3c9f5; }
+.q-hvhr { background: var(--red-lt); border-color: var(--red); }
+.q-lvlr { background: var(--green-lt); border-color: #9fd4b8; }
+.q-lvhr { background: var(--amber-lt); border-color: #ffd0a0; }
+.q-name { font-weight: 600; color: var(--ink); font-family: var(--mono); font-size: 0.84rem; }
+.q-count { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; }
+.q-count.blue { color: var(--blue); }
+.q-count.red { color: var(--red); }
+.q-count.green { color: var(--green); }
+.q-count.amber { color: var(--amber); }
+.q-strategy { font-size: 0.96rem; color: var(--silver); margin-top: 2px; }
+
+/* ── VaR table ── */
+.var-table { width: 100%; border-collapse: collapse; font-size: 0.96rem; }
+.var-table th { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 1px; text-transform: uppercase; color: var(--silver); padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+.var-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); font-family: var(--mono); color: var(--ink); }
+.var-table tr:last-child td { border-bottom: none; }
+.var-table .highlight { font-weight: 700; color: var(--red); }
+.var-table .muted { color: var(--silver); }
+
+/* ── Filter controls ── */
+.ctrl-row { display: flex; align-items: center; gap: 8px; }
+.ctrl-select {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  color: var(--ink);
+  background: var(--bg);
+  cursor: pointer;
+  outline: none;
+}
+.ctrl-select:focus { border-color: var(--blue); }
+.ctrl-badge {
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--white);
+  transition: all 0.15s;
+}
+.ctrl-badge.active-all  { background: var(--ink); color: #fff; border-color: var(--ink); }
+.ctrl-badge.active-hvhr { background: var(--red); color: #fff; border-color: var(--red); }
+.ctrl-badge.active-hvlr { background: var(--blue); color: #fff; border-color: var(--blue); }
+.ctrl-badge.active-lvhr { background: var(--amber); color: #fff; border-color: var(--amber); }
+.ctrl-badge.active-lvlr { background: var(--green); color: #fff; border-color: var(--green); }
+
+/* ── Customer detail panel ── */
+.cust-detail {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  line-height: 1.9;
+  font-family: var(--mono);
+  color: var(--ink2);
+  min-height: 120px;
+}
+.cust-detail .cd-label { color: var(--silver); font-size: 0.96rem; }
+.cust-detail .cd-val { font-weight: 600; color: var(--ink); }
+
+/* ── Strategy box ── */
+.strategy-box {
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  border: 1px solid;
+  margin-top: 10px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .panel-row-3 { grid-template-columns: 1fr 1fr; }
+  .panel-row-12, .panel-row-21 { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .panel-row-2, .panel-row-3 { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .mc-body { padding: 16px 14px; }
+  .mc-header { padding: 14px 16px; }
+}
+
+/* ── Scroll animation ── */
+.panel { opacity: 0; transform: translateY(16px); transition: opacity 0.4s ease, transform 0.4s ease; }
+.panel.visible { opacity: 1; transform: translateY(0); }
+.kpi-card { opacity: 0; transform: translateY(12px); transition: opacity 0.35s ease, transform 0.35s ease; }
+.kpi-card.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ══ TOP NAV ══ -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <div class="nav-left">
+      <div class="nav-logo" onclick="window.location.href='/'">
+        <span class="logo-text">CRIP</span>
+      </div>
+      <div id="nav-menu" style="display:flex;align-items:center;gap:4px;margin-left:8px;">
+        <a href="/" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:500;color:var(--text-sub);padding:8px 14px;cursor:pointer;border-radius:4px;transition:color .15s;text-decoration:none;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text-sub)'">首頁</a>
+        <a href="/?page=dashboard" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:500;color:var(--text-sub);padding:8px 14px;cursor:pointer;border-radius:4px;transition:color .15s;text-decoration:none;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text-sub)'">儀表板</a>
+        <a href="/montecarlo" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:600;color:var(--blue);padding:8px 14px;cursor:pointer;border-radius:4px;text-decoration:none;">信用風險損失整合分析系統</a>
+        <a href="/" onclick="event.preventDefault();window.location.href='/?page=about'" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:500;color:var(--text-sub);padding:8px 14px;cursor:pointer;border-radius:4px;transition:color .15s;text-decoration:none;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text-sub)'">關於系統</a>
+      </div>
+    </div>
+    <div class="nav-right">
+      <a href="/" class="btn-outline-pill" style="text-decoration:none">返回主站</a>
+    </div>
+  </div>
+</nav>
+
+<div class="mc-wrap">
+
+  <!-- Sub-header -->
+  <div class="mc-header">
+    <div class="mc-header-left">
+      <h1><i class="fas fa-chart-network" style="color:#60a5fa"></i> 信用風險損失整合分析系統</h1>
+      <p>CREDIT RISK & MONTE CARLO LOSS SIMULATION DASHBOARD · PD / EAD / LGD / EL / VaR / CVaR</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <span class="mc-badge mb-live"><i class="fas fa-circle" style="font-size:7px"></i> Model Live</span>
+      <span class="mc-badge mb-sims">10,000 Simulations</span>
+    </div>
+  </div>
+
+  <!-- Breadcrumb -->
+  <div class="mc-breadcrumb">
+    <a href="/">首頁</a>
+    <i class="fas fa-chevron-right" style="font-size:10px"></i>
+    <strong>信用風險損失整合分析系統</strong>
+  </div>
+
+  <div class="mc-body">
+
+    <!-- ── KPI Row ── -->
+    <div class="kpi-row" id="kpi-row">
+      <div class="kpi-card kpi-blue">
+        <div class="kpi-label">投資組合期望損失均值</div>
+        <div class="kpi-value">4,692<span class="kpi-unit">NT$</span></div>
+        <div class="kpi-sub">10,000 次模擬的平均損失</div>
+      </div>
+      <div class="kpi-card kpi-gold">
+        <div class="kpi-label">VaR 在險價值 95%</div>
+        <div class="kpi-value">4,744<span class="kpi-unit">NT$</span></div>
+        <div class="kpi-sub">第 95 百分位損失</div>
+      </div>
+      <div class="kpi-card kpi-red">
+        <div class="kpi-label">條件在險價值</div>
+        <div class="kpi-value">4,778<span class="kpi-unit">NT$</span></div>
+        <div class="kpi-sub">尾部期望損失（最差 1%）</div>
+      </div>
+      <div class="kpi-card kpi-green">
+        <div class="kpi-label">投資組合 AUC 指標</div>
+        <div class="kpi-value">0.824</div>
+        <div class="kpi-sub">機器學習模型鑑別力</div>
+      </div>
+      <div class="kpi-card kpi-amber">
+        <div class="kpi-label">高風險客戶數</div>
+        <div class="kpi-value">1,635<span class="kpi-unit">人</span></div>
+        <div class="kpi-sub">高期望損失 × 高違約機率族群</div>
+      </div>
+      <div class="kpi-card kpi-blue">
+        <div class="kpi-label">客戶總數</div>
+        <div class="kpi-value">30,000<span class="kpi-unit">人</span></div>
+        <div class="kpi-sub">蒙地卡羅模擬 10,000 次</div>
+      </div>
+    </div>
+
+    <!-- ── Row 1: Model Performance + Quadrant Distribution ── -->
+    <div class="panel-row panel-row-12">
+
+      <!-- Model Performance -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left">
+            <div class="panel-bar"></div>
+            <div>
+              <div class="panel-title">模型效能指標</div>
+              <div class="panel-sub">Machine Learning · LightGBM · UCI Dataset</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="metric-grid">
+            <div class="metric-item"><div class="metric-name">AUC-ROC</div><div class="metric-val auc">0.824</div></div>
+            <div class="metric-item"><div class="metric-name">Recall</div><div class="metric-val rec">68.1%</div></div>
+            <div class="metric-item"><div class="metric-name">Precision</div><div class="metric-val pre">68.2%</div></div>
+            <div class="metric-item"><div class="metric-name">Accuracy</div><div class="metric-val acc">82.1%</div></div>
+          </div>
+          <div class="cm-grid" style="margin-top:16px;">
+            <div class="cm-label"></div>
+            <div class="cm-label">預測違約</div>
+            <div class="cm-label">預測正常</div>
+            <div class="cm-label" style="writing-mode:initial;white-space:nowrap;font-size:0.6rem;">實際違約</div>
+            <div class="cm-cell cm-tp">666<div class="cm-caption">TP</div></div>
+            <div class="cm-cell cm-fn">577<div class="cm-caption">FN</div></div>
+            <div class="cm-label" style="white-space:nowrap;font-size:0.6rem;">實際正常</div>
+            <div class="cm-cell cm-fp">418<div class="cm-caption">FP</div></div>
+            <div class="cm-cell cm-tn">4339<div class="cm-caption">TN</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quadrant Distribution -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left">
+            <div class="panel-bar gold"></div>
+            <div>
+              <div class="panel-title">風險-損失象限分佈</div>
+              <div class="panel-sub">Risk-Loss Quadrant · PD × Expected Loss</div>
+            </div>
+          </div>
+          <div class="ctrl-row">
+            <button class="ctrl-badge active-all" id="qfilt-all" onclick="filterQuadrant('all')">全部</button>
+            <button class="ctrl-badge" id="qfilt-hvhr" onclick="filterQuadrant('HighValue_HighRisk')">HV-HR</button>
+            <button class="ctrl-badge" id="qfilt-hvlr" onclick="filterQuadrant('HighValue_LowRisk')">HV-LR</button>
+            <button class="ctrl-badge" id="qfilt-lvhr" onclick="filterQuadrant('LowValue_HighRisk')">LV-HR</button>
+            <button class="ctrl-badge" id="qfilt-lvlr" onclick="filterQuadrant('LowValue_LowRisk')">LV-LR</button>
+          </div>
+        </div>
+        <div class="panel-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div class="chart-wrap" style="height:260px">
+              <canvas id="scatterChart"></canvas>
+            </div>
+          </div>
+          <div>
+            <div class="q-legend">
+              <div class="q-item q-hvhr">
+                <div><div class="q-name">⚠ 高損失 · 高違約</div><div class="q-strategy">縮減額度・強化監控・重組</div></div>
+                <div class="q-count red">1,635</div>
+              </div>
+              <div class="q-item q-hvlr">
+                <div><div class="q-name">◈ 高損失 · 低違約</div><div class="q-strategy">維持或謹慎提額・曝險上限</div></div>
+                <div class="q-count blue">2,977</div>
+              </div>
+              <div class="q-item q-lvhr">
+                <div><div class="q-name">△ 低損失 · 高違約</div><div class="q-strategy">自動管控・縮減或退出</div></div>
+                <div class="q-count amber">2,865</div>
+              </div>
+              <div class="q-item q-lvlr">
+                <div><div class="q-name">✓ 低損失 · 低違約</div><div class="q-strategy">維持・基本服務</div></div>
+                <div class="q-count green">1,523</div>
+              </div>
+            </div>
+            <div id="cust-detail" style="margin-top:12px;" class="cust-detail">
+              <span style="color:var(--silver);font-size:0.72rem;">← 點擊左側散點圖中的客戶點，即可在此查看該客戶詳細資訊</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Row 2: Monte Carlo Distribution + VaR Table ── -->
+    <div class="panel-row panel-row-21">
+
+      <!-- Loss Distribution -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left">
+            <div class="panel-bar red"></div>
+            <div>
+              <div class="panel-title">蒙地卡羅損失分佈</div>
+              <div class="panel-sub">Portfolio Loss Distribution · 10,000 Simulations · N=30,000</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap" style="height:260px">
+            <canvas id="lossHistChart"></canvas>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;">
+            <div style="font-family:var(--mono);font-size:0.72rem;"><span style="color:var(--silver)">均值：</span><strong>4,691.8</strong></div>
+            <div style="font-family:var(--mono);font-size:0.72rem;"><span style="color:var(--silver)">標準差：</span><strong>32.01</strong></div>
+            <div style="font-family:var(--mono);font-size:0.72rem;"><span style="color:var(--silver)">P50：</span><strong>4,691.7</strong></div>
+            <div style="font-family:var(--mono);font-size:0.72rem;"><span style="color:var(--silver)">P95：</span><strong style="color:var(--gold)">4,743.9</strong></div>
+            <div style="font-family:var(--mono);font-size:0.72rem;"><span style="color:var(--silver)">P99：</span><strong style="color:var(--red)">4,766.4</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VaR / CVaR Table -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left">
+            <div class="panel-bar amber"></div>
+            <div>
+              <div class="panel-title">風險值摘要</div>
+              <div class="panel-sub">VaR / CVaR · Risk Capital Metrics</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <table class="var-table">
+            <thead>
+              <tr><th>指標</th><th>數值</th><th>說明</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Mean Loss</td><td class="muted">4,691.84</td><td class="muted">期望損失均值</td></tr>
+              <tr><td>Std Dev</td><td class="muted">32.005</td><td class="muted">損失波動度</td></tr>
+              <tr><td>P90</td><td>4,733.10</td><td class="muted">90% 分位損失</td></tr>
+              <tr><td>VaR 95%</td><td style="color:var(--gold);font-weight:700">4,743.90</td><td class="muted">在險價值 (95%)</td></tr>
+              <tr><td>CVaR 95%</td><td style="color:var(--amber);font-weight:700">4,757.69</td><td class="muted">條件在險價值</td></tr>
+              <tr><td>VaR 99%</td><td style="color:var(--red);font-weight:700">4,766.40</td><td class="muted">在險價值 (99%)</td></tr>
+              <tr><td>CVaR 99%</td><td class="highlight">4,777.53</td><td class="muted">尾部期望損失</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:16px;padding:12px 14px;background:var(--red-lt);border:1px solid var(--red);border-radius:6px;font-size:0.75rem;color:var(--red);line-height:1.6;font-family:var(--mono);">
+            <strong>監理資本建議：</strong><br>
+            CVaR 99% = <strong>4,777.5</strong> NT$<br>
+            建議提列資本緩衝 ≥ CVaR99 − Mean = <strong>85.7</strong> NT$
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Row 3: PD Distribution + Feature Importance ── -->
+    <div class="panel-row panel-row-2">
+
+      <!-- PD Distribution -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left">
+            <div class="panel-bar green"></div>
+            <div>
+              <div class="panel-title">違約機率 (PD) 分佈</div>
+              <div class="panel-sub">Probability of Default Distribution · N=9,000</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap" style="height:240px">
+            <canvas id="pdHistChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Importance -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left">
+            <div class="panel-bar blue"></div>
+            <div>
+              <div class="panel-title">特徵重要性</div>
+              <div class="panel-sub">Feature Importance · LightGBM</div>
+            </div>
+          </div>
+          <select class="ctrl-select" id="topn-select" onchange="renderFeatureImportance()">
+            <option value="10">Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="50">Top 50</option>
+          </select>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap" style="height:240px">
+            <canvas id="featChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /.mc-body -->
+</div><!-- /.mc-wrap -->
+
+<script>
+// ── Embedded data ──
+const SCATTER_DATA = [{"id": 1825, "pd": 0.25856734260792685, "el": 7757.0202782378055, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 410, "pd": 0.1803537897553451, "el": 25970.945724769696, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 4507, "pd": 0.8759794594871515, "el": 15767.630270768728, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 4013, "pd": 0.5087795264603101, "el": 15263.385793809302, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3658, "pd": 0.5475794582916619, "el": 39425.720996999655, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 2287, "pd": 0.31422508271069616, "el": 3770.7009925283537, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 1680, "pd": 0.15200955664138788, "el": 45602.86699241636, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 8936, "pd": 0.5281121403851805, "el": 25349.38273848866, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 1425, "pd": 0.22020628111554688, "el": 43600.84366087828, "limit": 330000.0, "q": "HighValue_LowRisk"}, {"id": 6913, "pd": 0.15626510038674657, "el": 2812.7718069614384, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 521, "pd": 0.3231448278906175, "el": 58166.069020311144, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 489, "pd": 0.207278289196274, "el": 9949.35788142115, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 1536, "pd": 0.3012649617018513, "el": 21691.07724253329, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 3583, "pd": 0.23442919602345225, "el": 32351.229051236405, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 3812, "pd": 0.41455441965698336, "el": 37309.8977691285, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 8280, "pd": 0.6054941941034666, "el": 36329.651646207996, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 435, "pd": 0.47300446605952456, "el": 5676.053592714294, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3258, "pd": 0.12103288758437, "el": 6535.77592955598, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 8929, "pd": 0.3615545589394009, "el": 99789.05826727465, "limit": 460000.0, "q": "HighValue_HighRisk"}, {"id": 6874, "pd": 0.7130326612346288, "el": 21390.979837038863, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3612, "pd": 0.19333062257568961, "el": 17399.756031812063, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 7360, "pd": 0.5158832667764967, "el": 37143.59520790776, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 4558, "pd": 0.34598274812952096, "el": 103794.82443885627, "limit": 500000.0, "q": "HighValue_HighRisk"}, {"id": 107, "pd": 0.38046302927076076, "el": 63917.7889174878, "limit": 280000.0, "q": "HighValue_HighRisk"}, {"id": 2616, "pd": 0.9826581358324572, "el": 11791.897629989486, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 6925, "pd": 0.4886909315190405, "el": 38117.89265848516, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 5575, "pd": 0.5766462757711313, "el": 17299.388273133936, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 4553, "pd": 0.24912189500320983, "el": 2989.4627400385175, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 2548, "pd": 0.4323494431474449, "el": 33723.2565655007, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 3528, "pd": 0.32294319251100134, "el": 21314.25070572609, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 5515, "pd": 0.9386190611269418, "el": 112634.28733523302, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 1675, "pd": 0.418332795229069, "el": 27609.964485118555, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 1520, "pd": 0.32469821099845997, "el": 19481.8926599076, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 6225, "pd": 0.8538089743872542, "el": 15368.561538970576, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 1585, "pd": 0.0771329098960951, "el": 23139.87296882853, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 5882, "pd": 0.09952589061395357, "el": 7763.019467888378, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 5636, "pd": 0.19046026863837748, "el": 18284.185789284238, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 4334, "pd": 0.311166574105617, "el": 20536.99389097072, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 712, "pd": 0.3181488294172153, "el": 38177.859530065834, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 7528, "pd": 0.43246498622865115, "el": 25947.89917371907, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 8786, "pd": 0.4081611864720932, "el": 39183.47390132095, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 2046, "pd": 0.6478504045220134, "el": 11661.30728139624, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 6202, "pd": 0.08688921839811589, "el": 25024.09489865738, "limit": 480000.0, "q": "HighValue_LowRisk"}, {"id": 1292, "pd": 0.19528913706992565, "el": 12889.083046615093, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 4804, "pd": 0.29874489446184294, "el": 53774.08100313172, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 5926, "pd": 0.0968931039655698, "el": 12208.531099661794, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 3151, "pd": 0.1599604208382246, "el": 34551.45090105651, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 1140, "pd": 0.4509012236741244, "el": 37875.70278862645, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 751, "pd": 0.3623229716884477, "el": 10869.68915065343, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3734, "pd": 0.1683964455137423, "el": 9093.408057742085, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 4742, "pd": 0.05129395563113867, "el": 21543.46136507824, "limit": 700000.0, "q": "HighValue_LowRisk"}, {"id": 1308, "pd": 0.28446784961627586, "el": 5120.421293092965, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 3815, "pd": 0.29403776889643185, "el": 8821.133066892955, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1655, "pd": 0.5439284902363869, "el": 6527.141882836642, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 6228, "pd": 0.3427714125838143, "el": 10283.142377514427, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 4555, "pd": 0.40168940485921045, "el": 4820.272858310525, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 7429, "pd": 0.5318673042229728, "el": 57441.66885608106, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 5978, "pd": 0.39368772899404453, "el": 85036.5494627136, "limit": 360000.0, "q": "HighValue_HighRisk"}, {"id": 2665, "pd": 0.27249506478800384, "el": 4904.911166184069, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 6066, "pd": 0.07923566389985004, "el": 6655.795767587403, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 5821, "pd": 0.06458250530111496, "el": 10849.860890587313, "limit": 280000.0, "q": "HighValue_LowRisk"}, {"id": 3433, "pd": 0.08759718233798205, "el": 7883.746410418385, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 4375, "pd": 0.1415211042123277, "el": 42456.3312636983, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 1170, "pd": 0.2855740644239081, "el": 61683.99791556414, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 2804, "pd": 0.15662114815087264, "el": 30071.260444967545, "limit": 320000.0, "q": "HighValue_LowRisk"}, {"id": 8752, "pd": 0.11763152835679931, "el": 9175.259211830347, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 4011, "pd": 0.39945100899734887, "el": 33553.884755777304, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 2678, "pd": 0.3017883017401518, "el": 36214.59620881822, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 7574, "pd": 0.22318400845625846, "el": 20086.56076106326, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 6217, "pd": 0.11664695278963, "el": 13997.6343347556, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 4423, "pd": 0.9152381670462674, "el": 10982.858004555206, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3599, "pd": 0.2300387266556041, "el": 6901.1617996681225, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 5314, "pd": 0.38298846564372785, "el": 13787.584763174202, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 917, "pd": 0.5516688463413087, "el": 3310.0130780478526, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 3753, "pd": 0.2943017389508276, "el": 58271.744312263865, "limit": 330000.0, "q": "HighValue_HighRisk"}, {"id": 526, "pd": 0.32409054628023737, "el": 62225.38488580557, "limit": 320000.0, "q": "HighValue_HighRisk"}, {"id": 5169, "pd": 0.1579774910633728, "el": 17061.569034844262, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 6573, "pd": 0.2771597346185283, "el": 34922.12656193456, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 4387, "pd": 0.9715295188526075, "el": 11658.35422623129, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 1085, "pd": 0.4990891359489529, "el": 8983.604447081152, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 3457, "pd": 0.14521663307644234, "el": 12198.197178421156, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 5156, "pd": 0.14695318089060647, "el": 881.7190853436388, "limit": 10000.0, "q": "LowValue_LowRisk"}, {"id": 3484, "pd": 0.4446457161839915, "el": 53357.48594207897, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 8180, "pd": 0.2934150233235302, "el": 8802.450699705907, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 6483, "pd": 0.6678721565738758, "el": 56101.26115220556, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 7518, "pd": 0.25363837814276013, "el": 48698.56860340994, "limit": 320000.0, "q": "HighValue_LowRisk"}, {"id": 2341, "pd": 0.18664236112031699, "el": 8958.833333775214, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 4340, "pd": 0.17630957768801112, "el": 20099.291856433265, "limit": 190000.0, "q": "HighValue_LowRisk"}, {"id": 2288, "pd": 0.11980169780345495, "el": 10063.342615490215, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 4041, "pd": 0.17034863444336992, "el": 18397.65251988395, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 8831, "pd": 0.3623674964127015, "el": 10871.024892381043, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 4305, "pd": 0.04988533068038038, "el": 2394.495872658258, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 7020, "pd": 0.7463206375736726, "el": 13433.771476326106, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 6544, "pd": 0.8637088793689985, "el": 41458.02620971193, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 5931, "pd": 0.0781175454442829, "el": 7967.989635316856, "limit": 170000.0, "q": "HighValue_LowRisk"}, {"id": 3594, "pd": 0.22453208945364034, "el": 26943.85073443684, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 2267, "pd": 0.7412533481572334, "el": 22237.600444717, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 8349, "pd": 0.3485518133936662, "el": 29278.352325067957, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 8086, "pd": 0.3354546093593721, "el": 10063.638280781164, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1490, "pd": 0.5832614368399895, "el": 34995.68621039938, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 772, "pd": 0.15762247376967195, "el": 17023.22716712457, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 1797, "pd": 0.08876658612755906, "el": 23966.978254440943, "limit": 450000.0, "q": "HighValue_LowRisk"}, {"id": 2505, "pd": 0.38214263242947216, "el": 2292.855794576833, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 2622, "pd": 0.3281230658319288, "el": 13781.168764941009, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 6917, "pd": 0.02133994892247463, "el": 4097.270193115129, "limit": 320000.0, "q": "HighValue_LowRisk"}, {"id": 1041, "pd": 0.3115112171248662, "el": 37381.34605498394, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 6305, "pd": 0.44648452390381616, "el": 48220.32858161214, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 6253, "pd": 0.3230514925305801, "el": 15506.471641467842, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 7669, "pd": 0.29087325135069686, "el": 3490.4790162083623, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 8670, "pd": 0.42625651779331974, "el": 33248.00838787894, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 4120, "pd": 0.23983407393152242, "el": 51804.15996920884, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 189, "pd": 0.2005920188945165, "el": 2407.104226734198, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 1877, "pd": 0.3024277202374366, "el": 3629.132642849239, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 8798, "pd": 0.25664525324326193, "el": 40036.65950594886, "limit": 260000.0, "q": "HighValue_LowRisk"}, {"id": 4372, "pd": 0.5573219319304775, "el": 6687.863183165729, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 5574, "pd": 0.030825620757236785, "el": 1849.537245434207, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 1828, "pd": 0.10533411895963402, "el": 5056.037710062432, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 4809, "pd": 0.9039896018444654, "el": 70511.1889438683, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 7124, "pd": 0.3479617450985665, "el": 27141.016117688185, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 2592, "pd": 0.07921191705546068, "el": 12357.059060651867, "limit": 260000.0, "q": "HighValue_LowRisk"}, {"id": 7434, "pd": 0.10158402944208351, "el": 1828.5125299575031, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 54, "pd": 0.23404265465804855, "el": 50553.213406138486, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 4316, "pd": 0.2639658115304196, "el": 14254.153822642656, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 8202, "pd": 0.21097899207951815, "el": 63293.697623855434, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 2928, "pd": 0.16415073602075675, "el": 4924.522080622703, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 8318, "pd": 0.19647281263506214, "el": 60120.68066632901, "limit": 510000.0, "q": "HighValue_LowRisk"}, {"id": 1744, "pd": 0.06475769459895013, "el": 3108.369340749606, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 4890, "pd": 0.1969186594828174, "el": 21267.21522414428, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 3259, "pd": 0.4149050986531773, "el": 39830.88947070502, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 6127, "pd": 0.22060274163286014, "el": 39708.49349391482, "limit": 300000.0, "q": "HighValue_LowRisk"}, {"id": 2647, "pd": 0.08445532828291522, "el": 8107.71151515986, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 8838, "pd": 0.18232011580375665, "el": 5469.603474112699, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 8690, "pd": 0.5487158784398554, "el": 85599.67703661745, "limit": 260000.0, "q": "HighValue_HighRisk"}, {"id": 10, "pd": 0.17884189221741578, "el": 8584.410826435958, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 5311, "pd": 0.9204507479087473, "el": 176726.54359847947, "limit": 320000.0, "q": "HighValue_HighRisk"}, {"id": 8006, "pd": 0.2597804547683384, "el": 49877.847315520965, "limit": 320000.0, "q": "HighValue_LowRisk"}, {"id": 320, "pd": 0.5356670270444777, "el": 16070.010811334329, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1833, "pd": 0.04580968340068671, "el": 6046.8782088906455, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 5948, "pd": 0.27427254879420526, "el": 18101.98822041755, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 5039, "pd": 0.05925073192711753, "el": 15997.697620321731, "limit": 450000.0, "q": "HighValue_LowRisk"}, {"id": 3924, "pd": 0.148285131861546, "el": 21353.05898806262, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 950, "pd": 0.1318519425979316, "el": 22942.238012040096, "limit": 290000.0, "q": "HighValue_LowRisk"}, {"id": 3947, "pd": 0.3261696555442683, "el": 7828.071733062439, "limit": 40000.0, "q": "LowValue_HighRisk"}, {"id": 1291, "pd": 0.4393133749181862, "el": 7907.640748527351, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 1404, "pd": 0.4980719407245651, "el": 173329.03537214868, "limit": 580000.0, "q": "HighValue_HighRisk"}, {"id": 7963, "pd": 0.28554890117158455, "el": 13706.347256236058, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 1134, "pd": 0.8548333152738895, "el": 35902.999241503356, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 8728, "pd": 0.23747051563398838, "el": 32770.9311574904, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 2061, "pd": 0.10595085278558786, "el": 17164.03815126523, "limit": 270000.0, "q": "HighValue_LowRisk"}, {"id": 2104, "pd": 0.4785392688427626, "el": 37326.06296973548, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 7788, "pd": 0.8787387001496094, "el": 26362.161004488284, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 2706, "pd": 0.2207576221970264, "el": 54306.37506046849, "limit": 410000.0, "q": "HighValue_LowRisk"}, {"id": 4343, "pd": 0.4072220457654752, "el": 24433.32274592851, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 8646, "pd": 0.21483948359516386, "el": 64451.84507854916, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 6933, "pd": 0.301115466566708, "el": 9033.46399700124, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3471, "pd": 0.05877118572300475, "el": 3526.271143380285, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 8836, "pd": 0.2581802588980405, "el": 4647.24466016473, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 3296, "pd": 0.13085353624443904, "el": 17272.666784265955, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 5108, "pd": 0.43292671431127655, "el": 5195.120571735319, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 6538, "pd": 0.1456830489225314, "el": 31467.53856726678, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 6119, "pd": 0.5631599668300739, "el": 27031.67840784354, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 7178, "pd": 0.24136224578467963, "el": 41997.030766534255, "limit": 290000.0, "q": "HighValue_LowRisk"}, {"id": 8480, "pd": 0.11973827779676223, "el": 5747.437334244587, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 7398, "pd": 0.5560560367527605, "el": 16681.681102582814, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1983, "pd": 0.48713542452461434, "el": 40919.3756600676, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 4062, "pd": 0.2953959537418961, "el": 37219.8901714789, "limit": 210000.0, "q": "HighValue_HighRisk"}, {"id": 3682, "pd": 0.9180835238193483, "el": 5508.50114291609, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 1050, "pd": 0.23528339109645197, "el": 4235.101039736135, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 5540, "pd": 0.13323412002018795, "el": 15988.094402422554, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 345, "pd": 0.19670732922324644, "el": 17703.659630092177, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 3771, "pd": 0.592331907171856, "el": 71079.82886062271, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 3609, "pd": 0.08431967609676196, "el": 20236.72226322287, "limit": 400000.0, "q": "HighValue_LowRisk"}, {"id": 118, "pd": 0.3443018158276878, "el": 57842.70505905155, "limit": 280000.0, "q": "HighValue_HighRisk"}, {"id": 1164, "pd": 0.21418318828227098, "el": 25701.98259387252, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 965, "pd": 0.1873896443475957, "el": 16865.067991283613, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 3751, "pd": 0.043460245428515336, "el": 13038.073628554599, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 1105, "pd": 0.3147432997634463, "el": 15107.67838864542, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 515, "pd": 0.4323358950895849, "el": 41504.245928600154, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 5414, "pd": 0.16206400438637183, "el": 23337.216631637544, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 1161, "pd": 0.6395971160075831, "el": 11512.748088136495, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 8424, "pd": 0.08889244263936553, "el": 13333.86639590483, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 3900, "pd": 0.10624754912983259, "el": 11474.73530602192, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 4563, "pd": 0.11865843951389685, "el": 12103.160830417477, "limit": 170000.0, "q": "HighValue_LowRisk"}, {"id": 7954, "pd": 0.1543405755954246, "el": 19446.912525023497, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 3511, "pd": 0.14941308029295267, "el": 31376.74686152006, "limit": 350000.0, "q": "HighValue_LowRisk"}, {"id": 8835, "pd": 0.23342297204902004, "el": 50419.36196258833, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 2168, "pd": 0.8494983640245631, "el": 10193.980368294757, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 7745, "pd": 0.0018670340370539758, "el": 627.3234364501359, "limit": 560000.0, "q": "HighValue_LowRisk"}, {"id": 3982, "pd": 0.24678659285311963, "el": 10365.036899831024, "limit": 70000.0, "q": "LowValue_LowRisk"}, {"id": 7750, "pd": 0.4548402203285081, "el": 8187.123965913145, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 6670, "pd": 0.23705752905309152, "el": 15645.796917504042, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 3120, "pd": 0.325841531128122, "el": 44966.131295680825, "limit": 230000.0, "q": "HighValue_HighRisk"}, {"id": 1546, "pd": 0.5198124204234379, "el": 24950.99618032502, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 1589, "pd": 0.40187463476775553, "el": 50636.2039807372, "limit": 210000.0, "q": "HighValue_HighRisk"}, {"id": 7063, "pd": 0.13573933847955374, "el": 16288.720617546449, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 5805, "pd": 0.20630667173074388, "el": 6189.200151922316, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 6940, "pd": 0.4581694442164262, "el": 13745.083326492786, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 6736, "pd": 0.9550873217596897, "el": 51574.71537502324, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 7652, "pd": 0.25289244867818406, "el": 54624.76891448775, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 888, "pd": 0.7551260256173539, "el": 9061.512307408246, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 1613, "pd": 0.4877540980924306, "el": 43897.86882831875, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 994, "pd": 0.27761777420751754, "el": 3331.4132904902103, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 6597, "pd": 0.375899634393173, "el": 13532.386838154227, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 5560, "pd": 0.1652950377827048, "el": 9917.702266962287, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 1791, "pd": 0.19647558256694844, "el": 9430.827963213525, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 4074, "pd": 0.7863116655292375, "el": 23589.349965877125, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3140, "pd": 0.21240945296347633, "el": 19116.85076671287, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 3117, "pd": 0.13048939513001073, "el": 4697.618224680386, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 8787, "pd": 0.24277668276139733, "el": 11653.280772547072, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 7351, "pd": 0.03299266932510909, "el": 6730.504542322254, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 2297, "pd": 0.3366469991119481, "el": 16159.05595737351, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 3007, "pd": 0.730826922643007, "el": 52619.5384302965, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 4564, "pd": 0.49146516248842564, "el": 23590.32779944443, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 7580, "pd": 0.1602187345816225, "el": 28839.37222469205, "limit": 300000.0, "q": "HighValue_LowRisk"}, {"id": 4093, "pd": 0.5751176312041912, "el": 6901.411574450294, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 1236, "pd": 0.21054109794590325, "el": 44213.63056863968, "limit": 350000.0, "q": "HighValue_LowRisk"}, {"id": 7261, "pd": 0.3006629085042907, "el": 9019.88725512872, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1605, "pd": 0.06277681463897854, "el": 12806.47018635162, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 829, "pd": 0.38301481943846993, "el": 41365.60049935475, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 8857, "pd": 0.5987189447238007, "el": 25146.19567839963, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 242, "pd": 0.33269459019317604, "el": 1996.1675411590563, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 1529, "pd": 0.2475620282164074, "el": 2970.744338596889, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 3873, "pd": 0.9304430602714782, "el": 167479.75084886604, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 2725, "pd": 0.30101182544064203, "el": 27091.06428965778, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 6659, "pd": 0.5394966061433065, "el": 9710.938910579518, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 7957, "pd": 0.03663307390004178, "el": 7033.550188808021, "limit": 320000.0, "q": "HighValue_LowRisk"}, {"id": 7887, "pd": 0.24003972874161023, "el": 33125.48256634221, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 3503, "pd": 0.37065120644796273, "el": 66717.2171606333, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 6571, "pd": 0.711142317069512, "el": 21334.26951208536, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 961, "pd": 0.5078759705135001, "el": 112748.46545399702, "limit": 370000.0, "q": "HighValue_HighRisk"}, {"id": 2698, "pd": 0.07852682137914736, "el": 16019.471561346061, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 6210, "pd": 0.3350062719474687, "el": 72361.35474065323, "limit": 360000.0, "q": "HighValue_HighRisk"}, {"id": 36, "pd": 0.2199356209852208, "el": 6598.068629556624, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 6397, "pd": 0.2779126297192031, "el": 23344.66089641306, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 4346, "pd": 0.30405696366896534, "el": 14594.734256110336, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 7455, "pd": 0.30474548934181406, "el": 5485.418808152653, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 4674, "pd": 0.7250666729916567, "el": 26102.40022769964, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 6931, "pd": 0.039366580997147314, "el": 4487.790233674794, "limit": 190000.0, "q": "HighValue_LowRisk"}, {"id": 7974, "pd": 0.21932923710480925, "el": 34215.36098835024, "limit": 260000.0, "q": "HighValue_LowRisk"}, {"id": 2537, "pd": 0.13145782087639823, "el": 18141.179280942957, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 3112, "pd": 0.4370483817901659, "el": 5244.580581481991, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 4862, "pd": 0.09547917350025954, "el": 10311.75073802803, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 3567, "pd": 0.5844016915008912, "el": 24544.871043037427, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 959, "pd": 0.6286426430077694, "el": 18859.27929023308, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 8884, "pd": 0.1768015175560924, "el": 8486.472842692436, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 999, "pd": 0.4035706284879365, "el": 14528.542625565715, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 5139, "pd": 0.5880614131497727, "el": 7056.736957797271, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 937, "pd": 0.4198642928940688, "el": 7557.557272093239, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 822, "pd": 0.18216012520554092, "el": 21859.21502466491, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 7812, "pd": 0.2111408158444992, "el": 6334.224475334976, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 8239, "pd": 0.32459203391062214, "el": 62321.670510839445, "limit": 320000.0, "q": "HighValue_HighRisk"}, {"id": 8702, "pd": 0.6721584919812399, "el": 20164.754759437194, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 2580, "pd": 0.24109891297630895, "el": 17359.121734294244, "limit": 120000.0, "q": "LowValue_LowRisk"}, {"id": 932, "pd": 0.12829487400227949, "el": 17704.692612314568, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 8321, "pd": 0.4600318527264032, "el": 46923.24897809313, "limit": 170000.0, "q": "HighValue_HighRisk"}, {"id": 1313, "pd": 0.42971069674237905, "el": 51565.28360908549, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 3045, "pd": 0.5543094772875016, "el": 33258.56863725009, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 1123, "pd": 0.9482735842594441, "el": 267413.1507611632, "limit": 470000.0, "q": "HighValue_HighRisk"}, {"id": 1114, "pd": 0.8536866345057356, "el": 148541.47440399797, "limit": 290000.0, "q": "HighValue_HighRisk"}, {"id": 3854, "pd": 0.2240741836204253, "el": 6722.225508612759, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 6616, "pd": 0.3271553924339293, "el": 13740.526482225032, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 1965, "pd": 0.26761995151661716, "el": 33720.113891093766, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 4034, "pd": 0.22344183195711728, "el": 6703.254958713518, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 652, "pd": 0.17727541161200588, "el": 6381.914818032212, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 1344, "pd": 0.3449218175192403, "el": 4139.061810230884, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 6869, "pd": 0.29242898779325094, "el": 14036.591414076045, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 8566, "pd": 0.941521067984688, "el": 129929.90738188695, "limit": 230000.0, "q": "HighValue_HighRisk"}, {"id": 5184, "pd": 0.08045145082609499, "el": 10619.59150904454, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 4273, "pd": 0.3858529595468638, "el": 39357.00187378011, "limit": 170000.0, "q": "HighValue_HighRisk"}, {"id": 3347, "pd": 0.10329216269223052, "el": 12395.05952306766, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 5148, "pd": 0.4364082278397374, "el": 13092.24683519212, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3911, "pd": 0.06526775674676376, "el": 5874.098107208738, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 4352, "pd": 0.6863872326334609, "el": 135904.67206142526, "limit": 330000.0, "q": "HighValue_HighRisk"}, {"id": 6485, "pd": 0.5523592058273005, "el": 9942.465704891409, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 2145, "pd": 0.07273899224630231, "el": 5673.641395211581, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 4916, "pd": 0.665053182416119, "el": 19951.59547248357, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 7492, "pd": 0.383719987460901, "el": 23023.19924765406, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 5181, "pd": 0.3364831220809164, "el": 12113.392394912991, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 1189, "pd": 0.8677518799840074, "el": 46858.60151913639, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 153, "pd": 0.2959733298299511, "el": 8879.199894898533, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 7509, "pd": 0.1075328333158995, "el": 11613.545998117146, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 1639, "pd": 0.23433157776588445, "el": 7029.947332976532, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 1201, "pd": 0.24730372499402062, "el": 13354.401149677113, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 8809, "pd": 0.3120975768772977, "el": 9362.927306318932, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3493, "pd": 0.5190980024853313, "el": 28031.29213420789, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 8289, "pd": 0.08125262924499217, "el": 19013.115243328168, "limit": 390000.0, "q": "HighValue_LowRisk"}, {"id": 2171, "pd": 0.4598036085496768, "el": 5517.643302596121, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 5719, "pd": 0.3365389968289871, "el": 44423.147581426296, "limit": 220000.0, "q": "HighValue_HighRisk"}, {"id": 1128, "pd": 0.26155636823054196, "el": 23540.073140748776, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 4003, "pd": 0.26345816155464646, "el": 7903.7448466393935, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 6055, "pd": 0.05990980973257073, "el": 11143.224610258154, "limit": 310000.0, "q": "HighValue_LowRisk"}, {"id": 4670, "pd": 0.8401423400514015, "el": 60490.24848370091, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 2585, "pd": 0.14228206988914166, "el": 9390.61661268335, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 7180, "pd": 0.09348482597222042, "el": 11218.17911666645, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 8901, "pd": 0.1443267864300177, "el": 18185.17509018223, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 4957, "pd": 0.16289463246352753, "el": 8796.310153030487, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 8667, "pd": 0.17637887098778024, "el": 15874.09838890022, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 129, "pd": 0.06951065269211326, "el": 14597.237065343785, "limit": 350000.0, "q": "HighValue_LowRisk"}, {"id": 4906, "pd": 0.8853983757439666, "el": 15937.170763391397, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 1698, "pd": 0.8494498782965378, "el": 45870.29342801304, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 2201, "pd": 0.31381437027615844, "el": 94144.31108284753, "limit": 500000.0, "q": "HighValue_HighRisk"}, {"id": 1892, "pd": 0.5955606537923814, "el": 85760.73414610293, "limit": 240000.0, "q": "HighValue_HighRisk"}, {"id": 1754, "pd": 0.4025439685380696, "el": 57966.33146948202, "limit": 240000.0, "q": "HighValue_HighRisk"}, {"id": 2547, "pd": 0.39953973628654654, "el": 14383.430506315673, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 4463, "pd": 0.20288855722438986, "el": 2434.662686692678, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 4617, "pd": 0.23565501539645684, "el": 7069.650461893705, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 3451, "pd": 0.4738383489327121, "el": 14215.150467981364, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 5618, "pd": 0.18452431566258107, "el": 5535.729469877432, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 3336, "pd": 0.06634768092018653, "el": 14331.09907876029, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 4326, "pd": 0.16472855508034479, "el": 10872.084635302755, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 8281, "pd": 0.14177730104726025, "el": 30623.89702620821, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 8005, "pd": 0.8476167583479354, "el": 50857.00550087612, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 4115, "pd": 0.3484924817639744, "el": 6272.8646717515385, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 833, "pd": 0.17268823536118671, "el": 45589.69413535329, "limit": 440000.0, "q": "HighValue_LowRisk"}, {"id": 1513, "pd": 0.26879357342864074, "el": 29029.7059302932, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 4534, "pd": 0.4620690025841771, "el": 58220.69432560631, "limit": 210000.0, "q": "HighValue_HighRisk"}, {"id": 723, "pd": 0.2681013575532854, "el": 3217.2162906394246, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 59, "pd": 0.6072050124001902, "el": 51005.22104161597, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 5465, "pd": 0.12460525713449276, "el": 17195.525484560003, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 2144, "pd": 0.3281689925038588, "el": 76791.54424590294, "limit": 390000.0, "q": "HighValue_HighRisk"}, {"id": 4292, "pd": 0.3613373473854927, "el": 10840.120421564781, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 2648, "pd": 0.24977075166754292, "el": 29972.490200105152, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 7240, "pd": 0.2186136679994718, "el": 18363.54811195563, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 7008, "pd": 0.05962949180685203, "el": 12879.970230280038, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 159, "pd": 0.6856224024036791, "el": 4113.734414422074, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 1233, "pd": 0.27396352561894954, "el": 29588.060766846553, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 2443, "pd": 0.19094135852728258, "el": 22912.963023273907, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 8939, "pd": 0.37408769602323794, "el": 17956.20940911542, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 591, "pd": 0.11565634916259283, "el": 24981.77141912005, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 6050, "pd": 0.16988798612796205, "el": 22425.21416889099, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 2427, "pd": 0.45735696962650546, "el": 57626.978172939685, "limit": 210000.0, "q": "HighValue_HighRisk"}, {"id": 7042, "pd": 0.3441252655957336, "el": 92913.82171084807, "limit": 450000.0, "q": "HighValue_HighRisk"}, {"id": 2089, "pd": 0.073417765698556, "el": 5286.079130296032, "limit": 120000.0, "q": "LowValue_LowRisk"}, {"id": 686, "pd": 0.2801813248838017, "el": 35302.84693535901, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 5051, "pd": 0.04531825666116439, "el": 13051.657918415343, "limit": 480000.0, "q": "HighValue_LowRisk"}, {"id": 5975, "pd": 0.1329599877019281, "el": 27123.83749119333, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 654, "pd": 0.13597459180014024, "el": 9790.170609610097, "limit": 120000.0, "q": "LowValue_LowRisk"}, {"id": 5863, "pd": 0.09258365231693595, "el": 12221.042105835546, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 3442, "pd": 0.5766057016940737, "el": 6919.268420328884, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 4089, "pd": 0.20809837088291755, "el": 26220.39473124761, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 1685, "pd": 0.05174760440473214, "el": 15524.281321419641, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 5795, "pd": 0.11239870143606784, "el": 33719.61043082035, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 2533, "pd": 0.31556558293346143, "el": 11360.360985604611, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 3879, "pd": 0.11570464911510708, "el": 16661.46947257542, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 2663, "pd": 0.5134796622061126, "el": 9242.633919710028, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 2901, "pd": 0.24986033558294138, "el": 22487.430202464726, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 6756, "pd": 0.17816838731304468, "el": 5345.05161939134, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 407, "pd": 0.3263689313940703, "el": 21540.34947200864, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 2939, "pd": 0.09654206952053634, "el": 11585.04834246436, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 5443, "pd": 0.41971320806357776, "el": 15109.675490288799, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 6746, "pd": 0.1745042018885951, "el": 10470.252113315706, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 4066, "pd": 0.2557338371345305, "el": 55238.50882105859, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 2609, "pd": 0.21174647575552621, "el": 31761.97136332893, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 1772, "pd": 0.1103524429087739, "el": 662.1146574526433, "limit": 10000.0, "q": "LowValue_LowRisk"}, {"id": 6268, "pd": 0.3106941383638963, "el": 42875.79109421769, "limit": 230000.0, "q": "HighValue_HighRisk"}, {"id": 635, "pd": 0.33210210122982115, "el": 17933.513466410343, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 7712, "pd": 0.5188494891454323, "el": 62261.93869745187, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 3645, "pd": 0.1534344595293432, "el": 28538.809472457833, "limit": 310000.0, "q": "HighValue_LowRisk"}, {"id": 3270, "pd": 0.36754672542071787, "el": 33079.205287864606, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 7542, "pd": 0.06029162564880704, "el": 1808.7487694642111, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 5729, "pd": 0.1921697723533513, "el": 18448.298145921723, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 5001, "pd": 0.021119836894719458, "el": 5195.479876100987, "limit": 410000.0, "q": "HighValue_LowRisk"}, {"id": 3729, "pd": 0.4794286618471268, "el": 28765.71971082761, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 3653, "pd": 0.5934596313967189, "el": 10682.27336514094, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 388, "pd": 0.4871162082539801, "el": 46763.15599238209, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 3165, "pd": 0.1492147582992349, "el": 14324.616796726548, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 6529, "pd": 0.19491276866465543, "el": 35084.29835963798, "limit": 300000.0, "q": "HighValue_LowRisk"}, {"id": 5379, "pd": 0.3172996111946204, "el": 9518.988335838612, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 4565, "pd": 0.18420067573959775, "el": 5526.020272187932, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 1138, "pd": 0.9048991719567749, "el": 16288.185095221948, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 4574, "pd": 0.19472783473455416, "el": 9346.936067258599, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 5754, "pd": 0.22494634426966995, "el": 14846.458721798215, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 8347, "pd": 0.16599254338577568, "el": 13943.373644405156, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 6549, "pd": 0.6898884878844873, "el": 33114.647418455395, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 5426, "pd": 0.21061823835245935, "el": 8845.966010803293, "limit": 70000.0, "q": "LowValue_LowRisk"}, {"id": 453, "pd": 0.43336519760005, "el": 13000.955928001498, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1890, "pd": 0.10434942332406306, "el": 5008.772319555027, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 4280, "pd": 0.2685002066441561, "el": 28998.022317568855, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 2926, "pd": 0.9092197450561936, "el": 16365.955411011484, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 4350, "pd": 0.013918703639698356, "el": 3340.4888735276054, "limit": 400000.0, "q": "HighValue_LowRisk"}, {"id": 627, "pd": 0.05598087747609234, "el": 12091.869534835943, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 1777, "pd": 0.31169994116688543, "el": 52365.59011603675, "limit": 280000.0, "q": "HighValue_HighRisk"}, {"id": 7120, "pd": 0.2060389943416628, "el": 6181.169830249884, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 5664, "pd": 0.49943384601333035, "el": 5993.206152159964, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 5140, "pd": 0.11370928597872709, "el": 17738.648612681427, "limit": 260000.0, "q": "HighValue_LowRisk"}, {"id": 7150, "pd": 0.19363368164648065, "el": 46472.08359515535, "limit": 400000.0, "q": "HighValue_LowRisk"}, {"id": 8380, "pd": 0.06767479965033132, "el": 20302.439895099396, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 1895, "pd": 0.666581618873594, "el": 127983.67082373005, "limit": 320000.0, "q": "HighValue_HighRisk"}, {"id": 6312, "pd": 0.40351954105935844, "el": 62949.04840525991, "limit": 260000.0, "q": "HighValue_HighRisk"}, {"id": 3115, "pd": 0.14031935130759274, "el": 28625.14766674892, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 4174, "pd": 0.5561633212065613, "el": 10010.939781718103, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 728, "pd": 0.14407628435483114, "el": 9509.034767418854, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 7145, "pd": 0.12665439378187246, "el": 3799.631813456174, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 28, "pd": 0.7257280186556426, "el": 21771.84055966928, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 8519, "pd": 0.2725289228132942, "el": 29433.123663835773, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 8822, "pd": 0.4567322974667868, "el": 13701.968924003602, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3229, "pd": 0.9431871997849369, "el": 39613.86239096735, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 5968, "pd": 0.20577993289446728, "el": 13581.47557103484, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 7067, "pd": 0.7219711967752572, "el": 12995.48154195463, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 1147, "pd": 0.4074986520535397, "el": 24449.91912321238, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 5410, "pd": 0.6940307895617406, "el": 208209.23686852216, "limit": 500000.0, "q": "HighValue_HighRisk"}, {"id": 5144, "pd": 0.20005731701622015, "el": 21606.190237751776, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 2042, "pd": 0.22323785079985575, "el": 2678.854209598269, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 4921, "pd": 0.02379982986250247, "el": 9139.134667200948, "limit": 640000.0, "q": "HighValue_LowRisk"}, {"id": 8309, "pd": 0.16557346375304657, "el": 22849.137997920425, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 5068, "pd": 0.37461698658722703, "el": 22477.01919523362, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 6692, "pd": 0.027702260981821138, "el": 5817.474806182438, "limit": 350000.0, "q": "HighValue_LowRisk"}, {"id": 5345, "pd": 0.476971658578231, "el": 82993.06859261218, "limit": 290000.0, "q": "HighValue_HighRisk"}, {"id": 6593, "pd": 0.19983988849728726, "el": 3597.117992951171, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 4845, "pd": 0.06125929640357705, "el": 5880.892454743397, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 2086, "pd": 0.12681658637992538, "el": 7608.995182795522, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 3144, "pd": 0.11909458702856934, "el": 24295.295753828148, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 6889, "pd": 0.028727172399979666, "el": 8618.151719993899, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 6212, "pd": 0.35106472723011206, "el": 10531.941816903362, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 2852, "pd": 0.2791909359941138, "el": 10050.873695788097, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 4931, "pd": 0.894175965700001, "el": 37555.39055940004, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 6654, "pd": 0.16731660672279286, "el": 19074.093166398387, "limit": 190000.0, "q": "HighValue_LowRisk"}, {"id": 8978, "pd": 0.3749613217822336, "el": 67493.03792080206, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 7, "pd": 0.12221276537763197, "el": 18331.914806644792, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 4979, "pd": 0.0419425150262378, "el": 10066.203606297073, "limit": 400000.0, "q": "HighValue_LowRisk"}, {"id": 4701, "pd": 0.3744975426707877, "el": 89879.41024098906, "limit": 400000.0, "q": "HighValue_HighRisk"}, {"id": 3444, "pd": 0.7011987569884478, "el": 12621.57762579206, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 7044, "pd": 0.06985155421679844, "el": 18021.700987933997, "limit": 430000.0, "q": "HighValue_LowRisk"}, {"id": 5280, "pd": 0.8919242391111236, "el": 64218.54521600089, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 7619, "pd": 0.732276096080729, "el": 43936.56576484374, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 7239, "pd": 0.2517087551230734, "el": 21143.535430338165, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 7245, "pd": 0.8305540848045446, "el": 9966.649017654536, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3502, "pd": 0.533460675230031, "el": 6401.528102760372, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 8376, "pd": 0.4856924254321056, "el": 5828.309105185268, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 7753, "pd": 0.17145466020535854, "el": 10287.279612321512, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 2781, "pd": 0.12609834181791701, "el": 11348.85076361253, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 1390, "pd": 0.11512261772282223, "el": 16577.6569520864, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 4650, "pd": 0.30874235020842244, "el": 55573.62303751604, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 8446, "pd": 0.634614406012365, "el": 7615.372872148379, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 5492, "pd": 0.42196915905501153, "el": 75954.44862990206, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 1531, "pd": 0.667780413502038, "el": 4006.6824810122275, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 3849, "pd": 0.0987120856231224, "el": 5330.45262364861, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 5086, "pd": 0.9435396967601163, "el": 11322.476361121395, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3681, "pd": 0.14669692492627057, "el": 30806.354234516817, "limit": 350000.0, "q": "HighValue_LowRisk"}, {"id": 3263, "pd": 0.9190459829364073, "el": 77199.86256665821, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 2415, "pd": 0.8605989877534572, "el": 216870.9449138712, "limit": 420000.0, "q": "HighValue_HighRisk"}, {"id": 401, "pd": 0.23397650494125544, "el": 29481.039622598182, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 758, "pd": 0.055068692380115074, "el": 13877.310479789, "limit": 420000.0, "q": "HighValue_LowRisk"}, {"id": 4012, "pd": 0.3823485242400664, "el": 32117.276036165575, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 7785, "pd": 0.166844647440966, "el": 15016.01826968694, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 1194, "pd": 0.3183686519294002, "el": 15281.69529261121, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 7462, "pd": 0.23330508275498377, "el": 11198.643972239219, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 6791, "pd": 0.16244478516576555, "el": 21442.71164188105, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 3186, "pd": 0.2646462900150365, "el": 20642.410621172847, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 6292, "pd": 0.8779184544563993, "el": 79012.66090107594, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 8100, "pd": 0.6617002849605136, "el": 138957.05984170784, "limit": 350000.0, "q": "HighValue_HighRisk"}, {"id": 6548, "pd": 0.059113437410900624, "el": 12768.502480754536, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 3998, "pd": 0.006639391310062345, "el": 2549.5262630639404, "limit": 640000.0, "q": "HighValue_LowRisk"}, {"id": 2418, "pd": 0.1604174630665269, "el": 28875.143351974843, "limit": 300000.0, "q": "HighValue_LowRisk"}, {"id": 91, "pd": 0.45546392142041986, "el": 8198.350585567556, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 1747, "pd": 0.43861380693089536, "el": 13158.41420792686, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 6966, "pd": 0.053308428406618626, "el": 4477.907986155964, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 3586, "pd": 0.1353976805005979, "el": 17060.107743075332, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 2882, "pd": 0.7536106906855772, "el": 45216.641441134634, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 8487, "pd": 0.9685281626380396, "el": 17433.506927484716, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 7612, "pd": 0.10768538216856166, "el": 18091.14420431836, "limit": 280000.0, "q": "HighValue_LowRisk"}, {"id": 823, "pd": 0.3143531664596207, "el": 16975.070988819516, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 4083, "pd": 0.3545785533253977, "el": 10637.356599761932, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1989, "pd": 0.23332321981132054, "el": 53197.69411698108, "limit": 380000.0, "q": "HighValue_LowRisk"}, {"id": 7479, "pd": 0.6102113772084612, "el": 131805.65747702762, "limit": 360000.0, "q": "HighValue_HighRisk"}, {"id": 2185, "pd": 0.2580480404406131, "el": 7741.441213218392, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 7613, "pd": 0.016974729918878516, "el": 5092.418975663555, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 8703, "pd": 0.18384604850909425, "el": 39710.746477964356, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 5199, "pd": 0.2724530118651171, "el": 40867.951779767565, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 7252, "pd": 0.20732704799077406, "el": 17415.47203122502, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 8271, "pd": 0.23699800758945946, "el": 22751.80872858811, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 6992, "pd": 0.8574089512785198, "el": 15433.361123013356, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 8977, "pd": 0.07714398035822245, "el": 3702.9110571946776, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 7306, "pd": 0.07379383270757668, "el": 2213.8149812273004, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 2608, "pd": 0.21298082688148784, "el": 6389.424806444636, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 7778, "pd": 0.3107498909577913, "el": 7457.997382986991, "limit": 40000.0, "q": "LowValue_HighRisk"}, {"id": 7374, "pd": 0.3391544031266425, "el": 77327.2039128745, "limit": 380000.0, "q": "HighValue_HighRisk"}, {"id": 4247, "pd": 0.6885467815470389, "el": 8262.561378564465, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 4051, "pd": 0.08533237956728379, "el": 17407.805431725894, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 4544, "pd": 0.24505055199968775, "el": 39698.189423949414, "limit": 270000.0, "q": "HighValue_LowRisk"}, {"id": 8541, "pd": 0.20336801616817057, "el": 7321.248582054141, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 7940, "pd": 0.11234397255098003, "el": 10110.957529588202, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 3920, "pd": 0.2057703717077384, "el": 61731.11151232151, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 4500, "pd": 0.07050474414947226, "el": 6345.426973452503, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 7207, "pd": 0.3740053286866451, "el": 13464.191832719223, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 1270, "pd": 0.3899722909026161, "el": 81894.18108954937, "limit": 350000.0, "q": "HighValue_HighRisk"}, {"id": 4682, "pd": 0.19114564082523114, "el": 37846.836883395765, "limit": 330000.0, "q": "HighValue_LowRisk"}, {"id": 3842, "pd": 0.46561064466622865, "el": 55873.27735994744, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 4452, "pd": 0.1362015569039226, "el": 12258.140121353033, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 5503, "pd": 0.3148283673559988, "el": 51002.1955116718, "limit": 270000.0, "q": "HighValue_HighRisk"}, {"id": 5239, "pd": 0.861167946005531, "el": 20668.030704132743, "limit": 40000.0, "q": "LowValue_HighRisk"}, {"id": 8850, "pd": 0.2181189993949488, "el": 7852.283978218157, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 1321, "pd": 0.5659696467009698, "el": 50937.26820308728, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 2268, "pd": 0.43845759627587955, "el": 55245.657130760825, "limit": 210000.0, "q": "HighValue_HighRisk"}, {"id": 2472, "pd": 0.17481260301559917, "el": 24124.139216152686, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 3789, "pd": 0.5534101818664696, "el": 9961.383273596453, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 6276, "pd": 0.12554477797823965, "el": 21091.522700344263, "limit": 280000.0, "q": "HighValue_LowRisk"}, {"id": 2504, "pd": 0.5279035701061152, "el": 6334.842841273383, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3506, "pd": 0.1732595855396529, "el": 4158.23005295167, "limit": 40000.0, "q": "LowValue_LowRisk"}, {"id": 1053, "pd": 0.1628558089112609, "el": 22474.101629754, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 6798, "pd": 0.14139216639816965, "el": 5090.117990334107, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 6679, "pd": 0.29870721119626553, "el": 8961.216335887966, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 5422, "pd": 0.3350709885175427, "el": 40208.51862210512, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 8891, "pd": 0.366935917847272, "el": 46233.92564875627, "limit": 210000.0, "q": "HighValue_HighRisk"}, {"id": 7634, "pd": 0.050839944975608155, "el": 4270.555377951085, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 6813, "pd": 0.16988475198625133, "el": 8154.468095340064, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 1021, "pd": 0.16375529672897723, "el": 4912.658901869317, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 3389, "pd": 0.17455480997923165, "el": 31419.865796261693, "limit": 300000.0, "q": "HighValue_LowRisk"}, {"id": 6884, "pd": 0.36938311765938897, "el": 46542.27282508301, "limit": 210000.0, "q": "HighValue_HighRisk"}, {"id": 6382, "pd": 0.2218741305439049, "el": 31949.874798322307, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 321, "pd": 0.2787605914335135, "el": 83628.17743005404, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 6233, "pd": 0.1256787568431687, "el": 7540.725410590123, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 7815, "pd": 0.07920835871311607, "el": 6178.251979623054, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 97, "pd": 0.7660825963054966, "el": 36771.964622663836, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 5764, "pd": 0.338270774925842, "el": 10148.12324777526, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 4893, "pd": 0.8309221953444926, "el": 139594.92881787475, "limit": 280000.0, "q": "HighValue_HighRisk"}, {"id": 6390, "pd": 0.3545547282071062, "el": 51055.880861823294, "limit": 240000.0, "q": "HighValue_HighRisk"}, {"id": 6866, "pd": 0.09895803461285312, "el": 4156.237453739831, "limit": 70000.0, "q": "LowValue_LowRisk"}, {"id": 8819, "pd": 0.037860054405303385, "el": 6133.328813659148, "limit": 270000.0, "q": "HighValue_LowRisk"}, {"id": 8948, "pd": 0.09116082313366036, "el": 8751.439020831394, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 3614, "pd": 0.5456714876743182, "el": 114591.0124116068, "limit": 350000.0, "q": "HighValue_HighRisk"}, {"id": 8000, "pd": 0.1470711359343007, "el": 23825.524021356712, "limit": 270000.0, "q": "HighValue_LowRisk"}, {"id": 3596, "pd": 0.2838136530739932, "el": 69818.15865620233, "limit": 410000.0, "q": "HighValue_LowRisk"}, {"id": 4472, "pd": 0.07768454570525699, "el": 13517.110952714715, "limit": 290000.0, "q": "HighValue_LowRisk"}, {"id": 7141, "pd": 0.9127637677239441, "el": 10953.165212687329, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 476, "pd": 0.22451743413526087, "el": 26942.092096231303, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 6372, "pd": 0.5011342472263809, "el": 108244.99740089827, "limit": 360000.0, "q": "HighValue_HighRisk"}, {"id": 5508, "pd": 0.06148460096598397, "el": 7009.244510122172, "limit": 190000.0, "q": "HighValue_LowRisk"}, {"id": 6625, "pd": 0.26051653927968627, "el": 23446.488535171764, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 2705, "pd": 0.7159665247737258, "el": 47253.7906350659, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 7658, "pd": 0.46156638867673355, "el": 27693.98332060401, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 2092, "pd": 0.5811832550168279, "el": 69741.99060201934, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 442, "pd": 0.23014317820716074, "el": 23474.604177130394, "limit": 170000.0, "q": "HighValue_LowRisk"}, {"id": 6456, "pd": 0.14984797727282956, "el": 16183.581545465591, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 445, "pd": 0.1914164608480402, "el": 35603.461717735474, "limit": 310000.0, "q": "HighValue_LowRisk"}, {"id": 1376, "pd": 0.4844108897778299, "el": 31971.11872533677, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 7023, "pd": 0.6095085721016046, "el": 10971.154297828884, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 2224, "pd": 0.15561998462479026, "el": 1867.439815497483, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 7565, "pd": 0.0334165183469929, "el": 7017.468852868509, "limit": 350000.0, "q": "HighValue_LowRisk"}, {"id": 2978, "pd": 0.17208402372267712, "el": 26845.10770073763, "limit": 260000.0, "q": "HighValue_LowRisk"}, {"id": 824, "pd": 0.2730913724867255, "el": 58987.736457132705, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 4263, "pd": 0.16469726375571092, "el": 5929.101495205593, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 5364, "pd": 0.05066692124431927, "el": 8512.042769045636, "limit": 280000.0, "q": "HighValue_LowRisk"}, {"id": 3468, "pd": 0.9827677114272245, "el": 17689.81880569004, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 7450, "pd": 0.10429140430497073, "el": 11263.471664936838, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 5356, "pd": 0.2846248587811588, "el": 20492.98983224343, "limit": 120000.0, "q": "LowValue_LowRisk"}, {"id": 5530, "pd": 0.1815099549356103, "el": 5445.298648068309, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 4559, "pd": 0.7809446781089194, "el": 23428.34034326758, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 6907, "pd": 0.04184197311178996, "el": 10042.07354682959, "limit": 400000.0, "q": "HighValue_LowRisk"}, {"id": 4134, "pd": 0.46284186122675497, "el": 83311.53502081589, "limit": 300000.0, "q": "HighValue_HighRisk"}, {"id": 1342, "pd": 0.07613346938004162, "el": 11420.020407006243, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 7706, "pd": 0.4672915467889786, "el": 16822.495684403228, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 318, "pd": 0.9762009952821662, "el": 146430.14929232493, "limit": 250000.0, "q": "HighValue_HighRisk"}, {"id": 854, "pd": 0.4804823718238016, "el": 40360.51923319933, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 5734, "pd": 0.4013099151263843, "el": 24078.594907583058, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 3674, "pd": 0.9083390078772583, "el": 76300.4766616897, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 1125, "pd": 0.7059547761282404, "el": 8471.457313538886, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 660, "pd": 0.5352917754484711, "el": 32117.506526908262, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 509, "pd": 0.2601763138792911, "el": 32782.21554879067, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 4052, "pd": 0.45627898953584306, "el": 8213.021811645174, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 3267, "pd": 0.3732868345020319, "el": 4479.442014024382, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 334, "pd": 0.017336834756860767, "el": 5201.0504270582305, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 2497, "pd": 0.1575929621494322, "el": 16074.482139242084, "limit": 170000.0, "q": "HighValue_LowRisk"}, {"id": 3909, "pd": 0.17630193219926502, "el": 22214.04345710739, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 2069, "pd": 0.7568022482125092, "el": 9081.62697855011, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 7759, "pd": 0.13934479851621362, "el": 15049.23823975107, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 1875, "pd": 0.04768330156801157, "el": 5149.79656934525, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 3572, "pd": 0.45839431188205837, "el": 8251.097613877051, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 7620, "pd": 0.2703250219784084, "el": 58390.20474733622, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 4199, "pd": 0.09036359688238965, "el": 12470.176369769772, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 6044, "pd": 0.2155626603545793, "el": 31041.02309105942, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 2750, "pd": 0.0795967140611782, "el": 13372.247962277937, "limit": 280000.0, "q": "HighValue_LowRisk"}, {"id": 2684, "pd": 0.8728526482306896, "el": 15711.347668152412, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 5097, "pd": 0.4301462096279385, "el": 12904.386288838154, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 421, "pd": 0.5616876087628012, "el": 30331.13087319126, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 5112, "pd": 0.2960432825837949, "el": 23091.376041536005, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 6150, "pd": 0.2984961965144086, "el": 41192.47511898839, "limit": 230000.0, "q": "HighValue_HighRisk"}, {"id": 6499, "pd": 0.811581242984286, "el": 53564.36203696287, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 3250, "pd": 0.7051980585482328, "el": 33849.50681031517, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 1246, "pd": 0.1511056794767105, "el": 7253.072614882103, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 3979, "pd": 0.37387840759770113, "el": 22432.70445586207, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 1670, "pd": 0.024121929248960065, "el": 6223.457746231697, "limit": 430000.0, "q": "HighValue_LowRisk"}, {"id": 4942, "pd": 0.10675609193331828, "el": 14732.340686797923, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 1984, "pd": 0.4693287578008914, "el": 126718.76460624067, "limit": 450000.0, "q": "HighValue_HighRisk"}, {"id": 673, "pd": 0.13771549501060742, "el": 24788.789101909337, "limit": 300000.0, "q": "HighValue_LowRisk"}, {"id": 5689, "pd": 0.7127509159885103, "el": 29935.538471517433, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 8729, "pd": 0.1611444328071747, "el": 1933.7331936860962, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 7019, "pd": 0.9404169242014428, "el": 203130.05562751164, "limit": 360000.0, "q": "HighValue_HighRisk"}, {"id": 6072, "pd": 0.45960634105029957, "el": 5515.276092603594, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 1130, "pd": 0.41650522660958406, "el": 7497.094078972513, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 8290, "pd": 0.128300900921375, "el": 19245.13513820625, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 5591, "pd": 0.12920040565149002, "el": 17054.453545996683, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 208, "pd": 0.35283748978791674, "el": 21170.249387275002, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 6883, "pd": 0.08842863262536509, "el": 10611.43591504381, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 8032, "pd": 0.13206115316416275, "el": 9508.403027819719, "limit": 120000.0, "q": "LowValue_LowRisk"}, {"id": 1730, "pd": 0.13324640774276664, "el": 16789.047375588594, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 7103, "pd": 0.4546762539648651, "el": 5456.115047578382, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 5935, "pd": 0.2904290217816026, "el": 55762.3721820677, "limit": 320000.0, "q": "HighValue_LowRisk"}, {"id": 7533, "pd": 0.8119816367294577, "el": 24359.44910188373, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 2507, "pd": 0.25078681150979465, "el": 16551.929559646447, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 7136, "pd": 0.3623985418484223, "el": 6523.173753271601, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 2886, "pd": 0.9272685553110502, "el": 16690.833995598903, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 8549, "pd": 0.43305322945512564, "el": 12991.596883653769, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 4426, "pd": 0.9548903740586523, "el": 80210.79142092679, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 8818, "pd": 0.8018784917179242, "el": 33678.89665215281, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 7922, "pd": 0.10530970425118476, "el": 16428.313863184823, "limit": 260000.0, "q": "HighValue_LowRisk"}, {"id": 7617, "pd": 0.20181776322093706, "el": 7265.439475953734, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 7137, "pd": 0.029383173640851124, "el": 8286.054966720016, "limit": 470000.0, "q": "HighValue_LowRisk"}, {"id": 4398, "pd": 0.05830130655911583, "el": 8745.195983867374, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 5281, "pd": 0.1458964573695748, "el": 7003.02995373959, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 4023, "pd": 0.11866540746042539, "el": 9967.894226675733, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 1420, "pd": 0.3658918665286334, "el": 6586.053597515402, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 4570, "pd": 0.049620799663451946, "el": 14886.239899035583, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 7386, "pd": 0.833420673186628, "el": 50005.24039119768, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 3996, "pd": 0.30316447140571395, "el": 25465.81559807997, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 7614, "pd": 0.2656953148614609, "el": 14347.547002518888, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 5512, "pd": 0.33748387259451934, "el": 10124.51617783558, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 471, "pd": 0.32733120070097077, "el": 3927.974408411649, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 8099, "pd": 0.6773885926873356, "el": 73157.96801023225, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 5326, "pd": 0.7840300720624976, "el": 23520.90216187493, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 2980, "pd": 0.24343286262559843, "el": 21908.957636303858, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 7989, "pd": 0.3073357518095451, "el": 29504.23217371633, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 3476, "pd": 0.2215816203957956, "el": 13294.897223747734, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 5814, "pd": 0.21046696124520056, "el": 29044.440651837675, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 4233, "pd": 0.22198255346758797, "el": 6659.476604027639, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 5577, "pd": 0.106726839556461, "el": 15368.664896130384, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 4582, "pd": 0.6859683910868769, "el": 41158.10346521261, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 4527, "pd": 0.1211202348618066, "el": 14534.428183416792, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 167, "pd": 0.39398738753449286, "el": 7091.772975620871, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 8465, "pd": 0.6240641491167859, "el": 11233.154684102146, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 3131, "pd": 0.16518689394425234, "el": 21804.67000064131, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 1403, "pd": 0.12781257577375646, "el": 9969.380910353002, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 3955, "pd": 0.18942198615083108, "el": 5682.659584524932, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 3938, "pd": 0.21062407408763334, "el": 22747.4000014644, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 7801, "pd": 0.3482655035767123, "el": 45971.04647212603, "limit": 220000.0, "q": "HighValue_HighRisk"}, {"id": 8042, "pd": 0.3872565952970948, "el": 2323.5395717825686, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 7343, "pd": 0.14598513021205067, "el": 6131.375468906128, "limit": 70000.0, "q": "LowValue_LowRisk"}, {"id": 283, "pd": 0.030673872933675923, "el": 4417.037702449333, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 1525, "pd": 0.30909878608846353, "el": 42655.63248020796, "limit": 230000.0, "q": "HighValue_HighRisk"}, {"id": 4821, "pd": 0.36089941911877177, "el": 17323.172117701044, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 3631, "pd": 0.6304319768435125, "el": 22695.551166366447, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 6626, "pd": 0.31004589611397426, "el": 5580.826130051537, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 3987, "pd": 0.1200115657642274, "el": 15121.457286292652, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 5017, "pd": 0.9472766294859112, "el": 17050.979330746402, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 6047, "pd": 0.18402132229298496, "el": 16561.919006368647, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 7754, "pd": 0.2686678832900363, "el": 32240.14599480436, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 8699, "pd": 0.05010825891405102, "el": 7516.238837107652, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 5633, "pd": 0.11943961202870844, "el": 28665.506886890023, "limit": 400000.0, "q": "HighValue_LowRisk"}, {"id": 6972, "pd": 0.24789192021070386, "el": 62468.76389309736, "limit": 420000.0, "q": "HighValue_LowRisk"}, {"id": 5420, "pd": 0.4211984631849072, "el": 70761.34181506441, "limit": 280000.0, "q": "HighValue_HighRisk"}, {"id": 5765, "pd": 0.26115383098773626, "el": 26637.690760749098, "limit": 170000.0, "q": "HighValue_LowRisk"}, {"id": 7435, "pd": 0.292932843056632, "el": 3515.1941166795837, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 4439, "pd": 0.2578920833654285, "el": 35589.107504429136, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 5024, "pd": 0.5868588376850442, "el": 84507.67262664637, "limit": 240000.0, "q": "HighValue_HighRisk"}, {"id": 4119, "pd": 0.8128851257500701, "el": 9754.62150900084, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3778, "pd": 0.09246684484108374, "el": 8322.016035697536, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 1977, "pd": 0.04697589183798954, "el": 10146.79263700574, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 3156, "pd": 0.4944110764388244, "el": 53396.39625539304, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 5170, "pd": 0.34534143204593176, "el": 41440.97184551181, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 1959, "pd": 0.25210302853782707, "el": 16638.799883496587, "limit": 110000.0, "q": "LowValue_LowRisk"}, {"id": 8780, "pd": 0.8645888513927189, "el": 25937.665541781567, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 3034, "pd": 0.6166380546854595, "el": 7399.656656225514, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3139, "pd": 0.9554836636428903, "el": 85993.52972786012, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 3546, "pd": 0.4508111422408282, "el": 5409.733706889938, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 7934, "pd": 0.891160819819862, "el": 21387.859675676686, "limit": 40000.0, "q": "LowValue_HighRisk"}, {"id": 4531, "pd": 0.17092828293971424, "el": 22562.533348042278, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 8596, "pd": 0.29822179876374927, "el": 8946.653962912478, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 4637, "pd": 0.17029160003901692, "el": 8173.996801872811, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 1648, "pd": 0.09960191240312379, "el": 10757.006539537368, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 3181, "pd": 0.16661021157964806, "el": 24991.53173694721, "limit": 250000.0, "q": "HighValue_LowRisk"}, {"id": 4854, "pd": 0.5130274263101924, "el": 110813.92408300156, "limit": 360000.0, "q": "HighValue_HighRisk"}, {"id": 3728, "pd": 0.052923917312072605, "el": 2540.348030979485, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 5913, "pd": 0.30008585207138067, "el": 36010.30224856568, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 2940, "pd": 0.16159851642532438, "el": 29087.732956558386, "limit": 300000.0, "q": "HighValue_LowRisk"}, {"id": 4953, "pd": 0.28588374856076954, "el": 41167.25979275082, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 232, "pd": 0.44438811988057897, "el": 42661.259508535586, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 2074, "pd": 0.3321837020362747, "el": 55806.86194209415, "limit": 280000.0, "q": "HighValue_HighRisk"}, {"id": 4495, "pd": 0.09823523947191662, "el": 13556.463047124493, "limit": 230000.0, "q": "HighValue_LowRisk"}, {"id": 746, "pd": 0.2670751649911232, "el": 27241.666829094567, "limit": 170000.0, "q": "HighValue_LowRisk"}, {"id": 894, "pd": 0.12102693112495137, "el": 14523.231734994162, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 4787, "pd": 0.8392175842836637, "el": 50353.05505701981, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 8043, "pd": 0.24248239608111125, "el": 7274.471882433337, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 1681, "pd": 0.1734596883451146, "el": 5203.790650353439, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 201, "pd": 0.5571511921700434, "el": 60172.32875436469, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 4659, "pd": 0.7844841841687178, "el": 28241.43063007384, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 7691, "pd": 0.4318774498982867, "el": 20730.117595117757, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 7844, "pd": 0.07685345217740676, "el": 23056.03565322203, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 7217, "pd": 0.04714511279243852, "el": 16123.628575013974, "limit": 570000.0, "q": "HighValue_LowRisk"}, {"id": 5583, "pd": 0.30823354350212506, "el": 16644.61134911475, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 3021, "pd": 0.2587414360630556, "el": 55888.150189620006, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 842, "pd": 0.44265977814153995, "el": 2655.95866884924, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 4137, "pd": 0.3461363393478207, "el": 2076.818036086924, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 7828, "pd": 0.4187482745110823, "el": 12562.44823533247, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1870, "pd": 0.4317549772971919, "el": 67353.77645836194, "limit": 260000.0, "q": "HighValue_HighRisk"}, {"id": 1071, "pd": 0.20023076687378255, "el": 34840.15343603816, "limit": 290000.0, "q": "HighValue_LowRisk"}, {"id": 6566, "pd": 0.14399841840042948, "el": 18143.800718454117, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 8057, "pd": 0.28316759958082144, "el": 13592.044779879428, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 1214, "pd": 0.38154941211233323, "el": 45785.929453479985, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 879, "pd": 0.6541624584160876, "el": 11774.924251489576, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 2486, "pd": 0.2638730634343457, "el": 15832.38380606074, "limit": 100000.0, "q": "LowValue_LowRisk"}, {"id": 2445, "pd": 0.45258401951083516, "el": 54310.082341300214, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 1396, "pd": 0.15760933787089013, "el": 22695.74465340818, "limit": 240000.0, "q": "HighValue_LowRisk"}, {"id": 4067, "pd": 0.46985410444300996, "el": 36648.62014655477, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 1941, "pd": 0.05984989210050008, "el": 17954.967630150026, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 6819, "pd": 0.2376389826784636, "el": 25665.010129274066, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 3698, "pd": 0.2281525769864734, "el": 6844.577309594202, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 8562, "pd": 0.4291725666182776, "el": 5150.070799419331, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 7382, "pd": 0.38288857182795805, "el": 45946.62861935496, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 7254, "pd": 0.15813952487023591, "el": 5693.022895328493, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 4872, "pd": 0.24304574084785557, "el": 11666.195560697068, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 7026, "pd": 0.13105484849119917, "el": 6290.632727577559, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 5004, "pd": 0.8993252239235568, "el": 102523.07552728547, "limit": 190000.0, "q": "HighValue_HighRisk"}, {"id": 987, "pd": 0.07041679284637366, "el": 16477.529526051436, "limit": 390000.0, "q": "HighValue_LowRisk"}, {"id": 1626, "pd": 0.011788168561322058, "el": 3960.8246366042113, "limit": 560000.0, "q": "HighValue_LowRisk"}, {"id": 3405, "pd": 0.5247828506835447, "el": 37784.36524921522, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 3458, "pd": 0.2455077153037817, "el": 41245.29617103533, "limit": 280000.0, "q": "HighValue_LowRisk"}, {"id": 4336, "pd": 0.06505886966554321, "el": 5855.298269898888, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 1331, "pd": 0.015768309502889797, "el": 4730.492850866939, "limit": 500000.0, "q": "HighValue_LowRisk"}, {"id": 2574, "pd": 0.8762472104253797, "el": 73604.76567573189, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 3930, "pd": 0.18426685577835736, "el": 37590.4385787849, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 2848, "pd": 0.5952599720897351, "el": 25000.918827768874, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 1230, "pd": 0.6237701817457069, "el": 104793.39053327875, "limit": 280000.0, "q": "HighValue_HighRisk"}, {"id": 2565, "pd": 0.4525470781552433, "el": 40729.2370339719, "limit": 150000.0, "q": "HighValue_HighRisk"}, {"id": 44, "pd": 0.3218543082070474, "el": 11586.755095453707, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 6694, "pd": 0.2587091772825275, "el": 1552.255063695165, "limit": 10000.0, "q": "LowValue_LowRisk"}, {"id": 7700, "pd": 0.18746587885602845, "el": 17996.72437017873, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 4772, "pd": 0.14082586166148045, "el": 27883.52060897313, "limit": 330000.0, "q": "HighValue_LowRisk"}, {"id": 535, "pd": 0.6108289332290904, "el": 7329.947198749084, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 3793, "pd": 0.5833784644792582, "el": 38502.97865563104, "limit": 110000.0, "q": "LowValue_HighRisk"}, {"id": 4721, "pd": 0.09067027448078185, "el": 9792.38964392444, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 4633, "pd": 0.2828348019934753, "el": 33940.17623921704, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 7439, "pd": 0.04836180793390643, "el": 8414.954580499718, "limit": 290000.0, "q": "HighValue_LowRisk"}, {"id": 1167, "pd": 0.17334730799626039, "el": 33282.68313528199, "limit": 320000.0, "q": "HighValue_LowRisk"}, {"id": 3825, "pd": 0.4000708853554309, "el": 38406.80499412136, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 4335, "pd": 0.06886620116219878, "el": 14875.099451034937, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 3242, "pd": 0.26357425409546115, "el": 7907.227622863834, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 1881, "pd": 0.24525081442183552, "el": 20601.068411434186, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 8923, "pd": 0.16940524598787057, "el": 8131.451807417788, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 3684, "pd": 0.20906179262607058, "el": 2508.741511512847, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 2442, "pd": 0.38067132549810095, "el": 45680.55905977212, "limit": 200000.0, "q": "HighValue_HighRisk"}, {"id": 4353, "pd": 0.14165216210601722, "el": 5099.47783581662, "limit": 60000.0, "q": "LowValue_LowRisk"}, {"id": 2331, "pd": 0.3762622863267356, "el": 18060.589743683307, "limit": 80000.0, "q": "LowValue_HighRisk"}, {"id": 978, "pd": 0.3320428661521652, "el": 27891.600756781878, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 2719, "pd": 0.3012193411990231, "el": 9036.580235970692, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 5040, "pd": 0.020431957072107598, "el": 5516.628409469052, "limit": 450000.0, "q": "HighValue_LowRisk"}, {"id": 4729, "pd": 0.23695034555652938, "el": 2843.404146678353, "limit": 20000.0, "q": "LowValue_LowRisk"}, {"id": 7196, "pd": 0.39570904356029996, "el": 42736.576704512394, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 2038, "pd": 0.23542504747895737, "el": 4237.650854621233, "limit": 30000.0, "q": "LowValue_LowRisk"}, {"id": 7680, "pd": 0.2095946898892722, "el": 16348.385811363234, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 4983, "pd": 0.9314710467131021, "el": 55888.26280278613, "limit": 100000.0, "q": "LowValue_HighRisk"}, {"id": 6595, "pd": 0.213254958035032, "el": 19192.946223152878, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 4461, "pd": 0.11964162439626946, "el": 12921.295434797103, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 8200, "pd": 0.5405619685684626, "el": 3243.3718114107755, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 8848, "pd": 0.24536213833732126, "el": 11777.382640191421, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 8091, "pd": 0.30304092841077107, "el": 16364.210134181638, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 7173, "pd": 0.7930631633879968, "el": 61858.92674426374, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 1318, "pd": 0.33735780991707703, "el": 32386.349752039398, "limit": 160000.0, "q": "HighValue_HighRisk"}, {"id": 7079, "pd": 0.2281378850744753, "el": 16425.92772536222, "limit": 120000.0, "q": "LowValue_LowRisk"}, {"id": 4103, "pd": 0.067862299309837, "el": 13843.909059206748, "limit": 340000.0, "q": "HighValue_LowRisk"}, {"id": 424, "pd": 0.21922673656689634, "el": 27622.568807428936, "limit": 210000.0, "q": "HighValue_LowRisk"}, {"id": 1497, "pd": 0.2794268437891902, "el": 21795.293815556834, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 340, "pd": 0.08236926289955677, "el": 8895.88039315213, "limit": 180000.0, "q": "HighValue_LowRisk"}, {"id": 4416, "pd": 0.3507995042747959, "el": 29467.158359082852, "limit": 140000.0, "q": "HighValue_HighRisk"}, {"id": 2871, "pd": 0.7493727390850498, "el": 31473.65504157209, "limit": 70000.0, "q": "LowValue_HighRisk"}, {"id": 7709, "pd": 0.5889869589500095, "el": 7067.8435074001145, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 8503, "pd": 0.08538978056793926, "el": 10246.773668152711, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 7246, "pd": 0.4054524478791305, "el": 7298.144061824349, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 2974, "pd": 0.12317256410818579, "el": 11824.566154385837, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 7142, "pd": 0.8021477512507245, "el": 9625.773015008694, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 1495, "pd": 0.3119976050815467, "el": 11231.913782935682, "limit": 60000.0, "q": "LowValue_HighRisk"}, {"id": 7701, "pd": 0.4673989270621095, "el": 50479.08412270782, "limit": 180000.0, "q": "HighValue_HighRisk"}, {"id": 5701, "pd": 0.5921222039394207, "el": 60396.46480182092, "limit": 170000.0, "q": "HighValue_HighRisk"}, {"id": 6691, "pd": 0.17544400939192556, "el": 16842.624901624855, "limit": 160000.0, "q": "HighValue_LowRisk"}, {"id": 5461, "pd": 0.6435552350441909, "el": 3861.331410265145, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 5261, "pd": 0.8472600943726303, "el": 25417.80283117891, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1714, "pd": 0.12892096886674437, "el": 17017.567890410257, "limit": 220000.0, "q": "HighValue_LowRisk"}, {"id": 2635, "pd": 0.8485067182604746, "el": 10182.080619125694, "limit": 20000.0, "q": "LowValue_HighRisk"}, {"id": 5404, "pd": 0.5934395770207925, "el": 42727.64954549706, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 6745, "pd": 0.24274824753139512, "el": 40781.70558527437, "limit": 280000.0, "q": "HighValue_LowRisk"}, {"id": 8118, "pd": 0.9103472241910847, "el": 65545.0001417581, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 4723, "pd": 0.07635128211791839, "el": 2290.5384635375517, "limit": 50000.0, "q": "LowValue_LowRisk"}, {"id": 6562, "pd": 0.1991966609754432, "el": 10756.619692673932, "limit": 90000.0, "q": "LowValue_LowRisk"}, {"id": 602, "pd": 0.08580026727064215, "el": 18532.8577304587, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 7452, "pd": 0.32333635390084337, "el": 9700.0906170253, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 1443, "pd": 0.30175193914097076, "el": 23536.651252995718, "limit": 130000.0, "q": "LowValue_HighRisk"}, {"id": 5154, "pd": 0.5892937179647942, "el": 31821.860770098887, "limit": 90000.0, "q": "LowValue_HighRisk"}, {"id": 4136, "pd": 0.09313387682284083, "el": 11176.0652187409, "limit": 200000.0, "q": "HighValue_LowRisk"}, {"id": 5297, "pd": 0.1463350108649262, "el": 13170.150977843357, "limit": 150000.0, "q": "HighValue_LowRisk"}, {"id": 1900, "pd": 0.26158354640715026, "el": 20403.51661975772, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 6623, "pd": 0.13818245146650968, "el": 36480.16718715855, "limit": 440000.0, "q": "HighValue_LowRisk"}, {"id": 8432, "pd": 0.07810174499025074, "el": 12183.872218479117, "limit": 260000.0, "q": "HighValue_LowRisk"}, {"id": 19, "pd": 0.5500790214634166, "el": 3300.4741287804995, "limit": 10000.0, "q": "LowValue_HighRisk"}, {"id": 8890, "pd": 0.284740551361375, "el": 22209.763006187248, "limit": 130000.0, "q": "LowValue_LowRisk"}, {"id": 7570, "pd": 0.23379417551212492, "el": 50499.54191061898, "limit": 360000.0, "q": "HighValue_LowRisk"}, {"id": 6771, "pd": 0.32480789030385093, "el": 9744.236709115528, "limit": 50000.0, "q": "LowValue_HighRisk"}, {"id": 889, "pd": 0.3257992110081539, "el": 5864.38579814677, "limit": 30000.0, "q": "LowValue_HighRisk"}, {"id": 3074, "pd": 0.2572114650995504, "el": 12346.150324778419, "limit": 80000.0, "q": "LowValue_LowRisk"}, {"id": 8495, "pd": 0.3630603784224812, "el": 26140.347246418645, "limit": 120000.0, "q": "LowValue_HighRisk"}, {"id": 5928, "pd": 0.2305056167627691, "el": 19362.4718080726, "limit": 140000.0, "q": "HighValue_LowRisk"}, {"id": 8168, "pd": 0.34409921470290816, "el": 10322.976441087245, "limit": 50000.0, "q": "LowValue_HighRisk"}];
+const LOSS_BINS    = [4563.0, 4567.22, 4571.45, 4575.67, 4579.89, 4584.11, 4588.34, 4592.56, 4596.78, 4601.0, 4605.23, 4609.45, 4613.67, 4617.89, 4622.12, 4626.34, 4630.56, 4634.78, 4639.01, 4643.23, 4647.45, 4651.67, 4655.9, 4660.12, 4664.34, 4668.56, 4672.79, 4677.01, 4681.23, 4685.45, 4689.68, 4693.9, 4698.12, 4702.34, 4706.57, 4710.79, 4715.01, 4719.23, 4723.46, 4727.68, 4731.9, 4736.12, 4740.35, 4744.57, 4748.79, 4753.01, 4757.24, 4761.46, 4765.68, 4769.9, 4774.13, 4778.35, 4782.57, 4786.79, 4791.02, 4795.24, 4799.46, 4803.68, 4807.91, 4812.13];
+const LOSS_COUNTS  = [1, 0, 0, 2, 3, 3, 5, 4, 4, 14, 19, 28, 38, 43, 54, 81, 91, 105, 147, 171, 215, 239, 269, 360, 397, 404, 511, 461, 572, 512, 512, 576, 478, 492, 457, 376, 403, 327, 277, 279, 235, 205, 141, 115, 112, 62, 56, 33, 31, 25, 18, 12, 10, 4, 3, 2, 4, 1, 0, 1];
+const PD_BINS      = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95];
+const PD_COUNTS    = [385, 822, 911, 861, 866, 767, 719, 598, 505, 454, 370, 309, 222, 184, 153, 171, 178, 213, 227, 85];
+const PORTFOLIO    = {"N_CUSTOMERS": 30000.0, "N_SIMS": 10000.0, "MEAN_LOSS": 4691.8438200000155, "STD_LOSS": 32.00517401021209, "P50": 4691.700000000014, "P90": 4733.100000000016, "P95": 4743.900000000016, "P99": 4766.400000000016, "VaR95": 4743.900000000016, "CVaR95": 4757.691964285729, "VaR99": 4766.400000000016, "CVaR99": 4777.5331730769385};
+const QCOUNTS      = {"HighValue_LowRisk": 2977, "LowValue_HighRisk": 2865, "LowValue_LowRisk": 1523, "HighValue_HighRisk": 1635};
+
+// Feature importance (from spec / typical UCI LightGBM)
+const FEATURES_ALL = [
+  {name:'PAY_0',     score:0.312},
+  {name:'LIMIT_BAL', score:0.187},
+  {name:'PAY_AMT1',  score:0.098},
+  {name:'PAY_AMT2',  score:0.084},
+  {name:'BILL_AMT1', score:0.071},
+  {name:'PAY_2',     score:0.058},
+  {name:'PAY_AMT3',  score:0.049},
+  {name:'BILL_AMT2', score:0.043},
+  {name:'AGE',       score:0.038},
+  {name:'PAY_3',     score:0.031},
+  {name:'PAY_AMT4',  score:0.026},
+  {name:'BILL_AMT3', score:0.022},
+  {name:'PAY_4',     score:0.019},
+  {name:'PAY_AMT5',  score:0.017},
+  {name:'BILL_AMT4', score:0.014},
+  {name:'PAY_5',     score:0.012},
+  {name:'PAY_AMT6',  score:0.011},
+  {name:'BILL_AMT5', score:0.009},
+  {name:'PAY_6',     score:0.008},
+  {name:'BILL_AMT6', score:0.007},
+  {name:'SEX',       score:0.006},
+  {name:'EDUCATION', score:0.005},
+  {name:'MARRIAGE',  score:0.004},
+];
+
+// ── Color map ──
+const Q_COLORS = {
+  'HighValue_HighRisk': 'rgba(192,57,43,0.75)',
+  'HighValue_LowRisk':  'rgba(0,85,204,0.65)',
+  'LowValue_HighRisk':  'rgba(168,79,0,0.7)',
+  'LowValue_LowRisk':   'rgba(10,110,63,0.65)',
+};
+const Q_BORDER = {
+  'HighValue_HighRisk': '#c0392b',
+  'HighValue_LowRisk':  '#0055cc',
+  'LowValue_HighRisk':  '#a84f00',
+  'LowValue_LowRisk':   '#0a6e3f',
+};
+
+let scatterChart, lossChart, pdChart, featChart;
+let currentFilter = 'all';
+
+// ── Scatter Chart ──
+function buildScatterDatasets(filter) {
+  const groups = {
+    'HighValue_HighRisk': [], 'HighValue_LowRisk': [],
+    'LowValue_HighRisk': [], 'LowValue_LowRisk': []
+  };
+  SCATTER_DATA.forEach(c => {
+    if (filter === 'all' || c.q === filter) groups[c.q].push({x: c.el, y: c.pd, id: c.id, limit: c.limit});
+  });
+  return Object.entries(groups).map(([q, pts]) => ({
+    label: q.replace('_',' · '),
+    data: pts,
+    backgroundColor: Q_COLORS[q],
+    borderColor: Q_BORDER[q],
+    borderWidth: 0.5,
+    pointRadius: 3,
+    pointHoverRadius: 6,
+  }));
+}
+
+function initScatter() {
+  const ctx = document.getElementById('scatterChart').getContext('2d');
+  scatterChart = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets: buildScatterDatasets('all') },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10, family: "'IBM Plex Mono'" }, boxWidth: 10, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = ctx.raw;
+              return [`ID: ${d.id}`, `PD: ${(d.y*100).toFixed(1)}%`, `EL: ${d.x.toFixed(0)}`, `Limit: ${d.limit.toLocaleString()}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { title: { display:true, text:'Expected Loss (EL)', font:{size:10,family:"'IBM Plex Mono'"} }, grid:{color:'rgba(0,0,0,0.04)'} },
+        y: { title: { display:true, text:'PD', font:{size:10,family:"'IBM Plex Mono'"} }, min:0, max:1, grid:{color:'rgba(0,0,0,0.04)'} }
+      },
+      onClick: (e, elements) => {
+        if (!elements.length) return;
+        const el = elements[0];
+        const d = scatterChart.data.datasets[el.datasetIndex].data[el.index];
+        document.getElementById('cust-detail').innerHTML = `
+          <div class="cd-label">CUSTOMER ID</div><div class="cd-val">#${d.id}</div>
+          <div class="cd-label" style="margin-top:6px;">PD</div><div class="cd-val">${(d.y*100).toFixed(2)}%</div>
+          <div class="cd-label" style="margin-top:6px;">Expected Loss (EL)</div><div class="cd-val">NT$ ${d.x.toFixed(1)}</div>
+          <div class="cd-label" style="margin-top:6px;">Credit Limit (EAD)</div><div class="cd-val">NT$ ${d.limit.toLocaleString()}</div>
+        `;
+      }
+    }
+  });
+}
+
+function filterQuadrant(q) {
+  currentFilter = q;
+  scatterChart.data.datasets = buildScatterDatasets(q);
+  scatterChart.update();
+  // update button styles
+  ['all','hvhr','hvlr','lvhr','lvlr'].forEach(id => {
+    const btn = document.getElementById('qfilt-'+id);
+    if (btn) { btn.className = 'ctrl-badge'; }
+  });
+  const map = {'all':'all','HighValue_HighRisk':'hvhr','HighValue_LowRisk':'hvlr','LowValue_HighRisk':'lvhr','LowValue_LowRisk':'lvlr'};
+  const activeBtn = document.getElementById('qfilt-'+map[q]);
+  if (activeBtn) activeBtn.className = 'ctrl-badge active-'+map[q];
+}
+
+// ── Loss Histogram ──
+function initLossHist() {
+  const ctx = document.getElementById('lossHistChart').getContext('2d');
+  const var95 = PORTFOLIO.VaR95;
+  const var99 = PORTFOLIO.VaR99;
+
+  lossChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: LOSS_BINS,
+      datasets: [{
+        label: '模擬損失頻率',
+        data: LOSS_COUNTS,
+        backgroundColor: LOSS_BINS.map(b =>
+          b >= var99 ? 'rgba(192,57,43,0.75)' :
+          b >= var95 ? 'rgba(201,151,10,0.75)' :
+          'rgba(0,85,204,0.45)'
+        ),
+        borderWidth: 0,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { title: ctx => `Loss ≈ ${parseFloat(ctx[0].label).toFixed(0)}`, label: ctx => `頻率: ${ctx.raw}` } },
+        annotation: {}
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, font:{size:9, family:"'IBM Plex Mono'"} }, grid:{display:false} },
+        y: { ticks: { font:{size:9} }, grid:{color:'rgba(0,0,0,0.04)'} }
+      }
+    }
+  });
+}
+
+// ── PD Histogram ──
+function initPDHist() {
+  const ctx = document.getElementById('pdHistChart').getContext('2d');
+  pdChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: PD_BINS.map(b => (b*100).toFixed(0)+'%'),
+      datasets: [{
+        label: '客戶數',
+        data: PD_COUNTS,
+        backgroundColor: PD_BINS.map(b =>
+          b >= 0.65 ? 'rgba(192,57,43,0.7)' :
+          b >= 0.35 ? 'rgba(201,151,10,0.7)' :
+          'rgba(10,110,63,0.6)'
+        ),
+        borderWidth: 0,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{title:ctx=>`PD: ${ctx[0].label}`,label:ctx=>`客戶數: ${ctx.raw}`}} },
+      scales: {
+        x: { ticks:{font:{size:9,family:"'IBM Plex Mono'"}}, grid:{display:false} },
+        y: { ticks:{font:{size:9}}, grid:{color:'rgba(0,0,0,0.04)'} }
+      }
+    }
+  });
+}
+
+// ── Feature Importance ──
+function renderFeatureImportance() {
+  const n = parseInt(document.getElementById('topn-select').value);
+  const data = FEATURES_ALL.slice(0, Math.min(n, FEATURES_ALL.length));
+  const labels = data.map(f => f.name);
+  const scores = data.map(f => f.score);
+  const ctx = document.getElementById('featChart').getContext('2d');
+  if (featChart) featChart.destroy();
+  featChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Importance',
+        data: scores,
+        backgroundColor: scores.map((s,i) => i===0?'rgba(192,57,43,0.8)':i<3?'rgba(168,79,0,0.7)':'rgba(0,85,204,0.55)'),
+        borderWidth: 0,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false} },
+      scales: {
+        x: { ticks:{font:{size:9,family:"'IBM Plex Mono'"}}, grid:{color:'rgba(0,0,0,0.04)'} },
+        y: { ticks:{font:{size:9,family:"'IBM Plex Mono'"}}, grid:{display:false} }
+      }
+    }
+  });
+}
+
+// ── Init all charts ──
+document.addEventListener('DOMContentLoaded', () => {
+  initScatter();
+  initLossHist();
+  initPDHist();
+  renderFeatureImportance();
+
+  // Scroll reveal
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 60);
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.05 });
+  document.querySelectorAll('.panel, .kpi-card').forEach(el => observer.observe(el));
+});
+</script>
+
+</body>
+</html>
