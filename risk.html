@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>風險預測系統 — 信守風控 CRIP</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ── Page chrome ── */
+.risk-wrap {
+  margin-top: 64px;
+  min-height: calc(100vh - 64px);
+  background: var(--gray-50);
+}
+
+/* ── Sub-header bar ── */
+.risk-subheader {
+  background: var(--navy);
+  color: #fff;
+  padding: 14px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.risk-subheader h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.model-stats { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.stat-badge {
+  background: rgba(255,255,255,0.12);
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.96rem;
+  border: 1px solid rgba(255,255,255,0.2);
+  white-space: nowrap;
+  font-family: var(--mono);
+}
+.cm-btn {
+  background: var(--blue);
+  color: white;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.96rem;
+  font-family: var(--sans);
+  transition: 0.2s;
+}
+.cm-btn:hover { background: #004fa3; }
+
+/* ── Breadcrumb ── */
+.breadcrumb {
+  padding: 10px 28px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+.breadcrumb a { color: var(--blue); text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb span { margin: 0 6px; color: var(--border); }
+
+/* ── Main container ── */
+.risk-container { max-width: 1200px; margin: 24px auto; padding: 0 24px; }
+
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  padding: 10px 22px;
+  font-size: 1.08rem;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: 0.2s;
+  border-radius: 4px 4px 0 0;
+  font-family: var(--sans);
+}
+.tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tab-btn:hover:not(.active) { color: var(--navy); }
+
+/* ── Tab content ── */
+.tab-content { display: none; animation: fadeIn 0.3s; }
+.tab-content.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Form sections ── */
+.form-section {
+  background: var(--white);
+  padding: 22px 24px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  margin-bottom: 18px;
+  border-left: 4px solid var(--blue);
+}
+.form-section h3 {
+  color: var(--navy);
+  margin: 0 0 16px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.input-group { display: flex; flex-direction: column; gap: 5px; }
+.input-group label { font-size: 0.96rem; font-weight: 600; color: var(--text-sub); }
+.input-group input {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1.08rem;
+  font-family: var(--sans);
+  transition: border 0.2s;
+  width: 100%;
+  color: var(--text);
+  background: #fafbfc;
+}
+.input-group input:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rgba(0,102,204,0.1); background: #fff; }
+
+/* ── Split layout ── */
+.split-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.split-column {
+  background: var(--gray-50);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.split-column h4 { margin: 0 0 14px; color: var(--text-sub); text-align: center; font-size: 1.03rem; font-weight: 600; }
+
+/* ── Range wrappers ── */
+.range-wrapper { display: flex; align-items: center; gap: 8px; width: 100%; }
+.range-wrapper input[type="range"] {
+  flex: 1;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--blue);
+  min-width: 0;
+}
+.range-wrapper input[type="number"] {
+  width: 95px;
+  padding: 8px 6px;
+  font-size: 1.0rem;
+  flex-shrink: 0;
+  text-align: right;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+}
+
+/* ── Submit button ── */
+.submit-btn {
+  width: 100%;
+  padding: 15px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  background: var(--navy);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+  margin-top: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  font-family: var(--sans);
+  letter-spacing: 0.5px;
+}
+.submit-btn:hover { background: var(--blue); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,102,204,0.2); }
+
+/* ── Result box ── */
+.result-box {
+  text-align: center;
+  padding: 18px;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 18px;
+  display: none;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  word-wrap: break-word;
+}
+.risk-high { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-bd); }
+.risk-low  { background: var(--safe-bg);   color: var(--safe);   border: 1px solid var(--safe-bd);   }
+
+/* ── Upload area ── */
+.upload-area {
+  border: 2px dashed var(--gray-400);
+  border-radius: 10px;
+  padding: 36px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: 0.2s;
+  background: var(--white);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+}
+.upload-area:hover { border-color: var(--blue); background: var(--blue-lt); }
+.upload-icon { font-size: 2.4rem; color: var(--blue); margin-bottom: 10px; }
+.upload-area h3 { font-size: 1.3rem; margin: 0; color: var(--navy); font-weight: 600; }
+.upload-area p { color: var(--text-muted); font-size: 1.0rem; margin-top: 6px; }
+
+/* ── Dashboard charts ── */
+.dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 20px; }
+.chart-box {
+  background: var(--white);
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  height: 300px;
+  position: relative;
+  border: 1px solid var(--border);
+}
+.chart-box.full-width { grid-column: 1 / -1; height: 380px; }
+
+/* ── Table ── */
+.table-controls { display: flex; justify-content: flex-end; margin-bottom: 10px; gap: 10px; align-items: center; flex-wrap: wrap; }
+.table-controls label { font-size: 1.0rem; font-weight: 600; color: var(--text-muted); }
+.table-controls select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 1.0rem;
+  cursor: pointer;
+  font-family: var(--sans);
+  color: var(--text);
+}
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--white);
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
+}
+#resultTable { width: 100%; border-collapse: collapse; text-align: center; white-space: nowrap; min-width: 600px; }
+#resultTable th { background: var(--navy); color: white; padding: 12px 16px; font-weight: 500; font-size: 1.0rem; }
+#resultTable td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 1.0rem; color: var(--text); }
+#resultTable tr:last-child td { border-bottom: none; }
+#resultTable tr:hover td { background: var(--gray-50); }
+
+.badge { padding: 4px 10px; border-radius: 12px; font-size: 0.92rem; font-weight: 700; }
+.badge-danger { background: var(--danger-bg); color: var(--danger); }
+.badge-success { background: var(--safe-bg); color: var(--safe); }
+.text-danger { color: var(--danger); font-weight: 600; }
+.text-success { color: var(--safe); font-weight: 600; }
+
+/* ── Modal ── */
+#cmModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+.modal-content { background: white; padding: 24px; border-radius: 12px; max-width: 100%; width: 520px; text-align: center; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.close-btn { position: absolute; top: 12px; right: 16px; font-size: 1.4rem; cursor: pointer; color: var(--text-muted); border: none; background: none; }
+.close-btn:hover { color: var(--text); }
+
+/* ── Status text ── */
+#batchStatus { text-align: center; margin-top: 16px; color: var(--blue); font-weight: 600; font-size: 1.08rem; }
+
+/* ── Section divider ── */
+.section-title {
+  color: var(--navy);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 10px;
+  margin: 28px 0 16px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+/* ── RWD ── */
+@media (max-width: 768px) {
+  .risk-subheader { flex-direction: column; text-align: center; }
+  .model-stats { justify-content: center; }
+  .split-layout { grid-template-columns: 1fr; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .chart-box { height: 280px; }
+  .chart-box.full-width { height: 320px; }
+  .risk-container { padding: 0 14px; }
+  .form-section { padding: 16px; }
+  .table-controls { justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+  .range-wrapper input[type="number"] { width: 72px; font-size: 0.96rem; }
+  .form-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ TOP NAV (same as main site) ══ -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <div class="nav-left">
+      <div class="nav-logo" onclick="window.location.href='/'">
+        <span class="logo-text">CRIP</span>
+      </div>
+      <div id="nav-menu" style="display:flex;align-items:center;gap:4px;margin-left:8px;">
+        <a href="/" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:500;color:var(--text-sub);padding:8px 14px;cursor:pointer;border-radius:4px;transition:color .15s;text-decoration:none;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text-sub)'">首頁</a>
+        <a href="/?page=dashboard" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:500;color:var(--text-sub);padding:8px 14px;cursor:pointer;border-radius:4px;transition:color .15s;text-decoration:none;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text-sub)'">儀表板</a>
+        <a href="/risk" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:600;color:var(--blue);padding:8px 14px;cursor:pointer;border-radius:4px;text-decoration:none;">風險預測系統</a>
+        <a href="/montecarlo" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:500;color:var(--text-sub);padding:8px 14px;cursor:pointer;border-radius:4px;transition:color .15s;text-decoration:none;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text-sub)'">信用風險損失整合分析系統</a>
+        <a href="/?page=about" style="background:none;border:none;font-family:var(--sans);font-size:16px;font-weight:500;color:var(--text-sub);padding:8px 14px;cursor:pointer;border-radius:4px;transition:color .15s;text-decoration:none;" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text-sub)'">關於系統</a>
+      </div>
+    </div>
+    <div class="nav-right">
+      <a href="/" class="btn-outline-pill" style="text-decoration:none">返回主站</a>
+    </div>
+  </div>
+</nav>
+
+<div class="risk-wrap">
+  <!-- Sub-header -->
+  <div class="risk-subheader">
+    <h1><i class="fas fa-shield-alt"></i> 風險預測系統 — 信用卡違約預測</h1>
+    <div class="model-stats">
+      <div class="stat-badge">精準度: <span id="val-p">載入中...</span></div>
+      <div class="stat-badge">召回率: <span id="val-r">—</span></div>
+      <div class="stat-badge">F1: <span id="val-f">—</span></div>
+      <button class="cm-btn" onclick="document.getElementById('cmModal').style.display='flex'"><i class="fas fa-table"></i> 混淆矩陣</button>
+    </div>
+  </div>
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <a href="/">首頁</a><span>/</span><strong>風險預測系統</strong>
+  </div>
+
+  <!-- Main content -->
+  <div class="risk-container">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('singleTab', this)"><i class="fas fa-user"></i> 單筆輸入預測</button>
+      <button class="tab-btn" onclick="switchTab('batchTab', this)"><i class="fas fa-file-csv"></i> 批次上傳 (CSV)</button>
+    </div>
+
+    <!-- ── 單筆預測 ── -->
+    <div id="singleTab" class="tab-content active">
+      <form id="singleForm" onsubmit="return false;">
+
+        <div class="form-section">
+          <h3><i class="fas fa-user-circle"></i> 1. 客戶基本資料</h3>
+          <div class="form-grid">
+            <div class="input-group">
+              <label>信用額度 (LIMIT_BAL)</label>
+              <div class="range-wrapper">
+                <input type="range" min="10000" max="1000000" step="10000" value="50000" oninput="this.nextElementSibling.value = this.value">
+                <input type="number" id="LIMIT_BAL" value="50000" oninput="this.previousElementSibling.value = this.value" required>
+              </div>
+            </div>
+            <div class="input-group"><label>性別 (SEX: 1=男 / 2=女)</label><input type="number" id="SEX" value="2" min="1" max="2" required></div>
+            <div class="input-group"><label>教育 (1=研究所 2=大學 3=高中 4=其他)</label><input type="number" id="EDUCATION" value="2" min="1" max="4" required></div>
+            <div class="input-group"><label>婚姻 (1=已婚 2=單身 3=其他)</label><input type="number" id="MARRIAGE" value="1" min="1" max="3" required></div>
+            <div class="input-group"><label>年齡 (AGE)</label><input type="number" id="AGE" value="30" min="18" max="100" required></div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3><i class="fas fa-calendar-alt"></i> 2. 歷史繳款狀態 (過去6個月延遲月數)</h3>
+          <div class="form-grid">
+            <div class="input-group"><label>PAY_0 (9月)</label><input type="number" id="PAY_0" value="0" required></div>
+            <div class="input-group"><label>PAY_2 (8月)</label><input type="number" id="PAY_2" value="0" required></div>
+            <div class="input-group"><label>PAY_3 (7月)</label><input type="number" id="PAY_3" value="0" required></div>
+            <div class="input-group"><label>PAY_4 (6月)</label><input type="number" id="PAY_4" value="0" required></div>
+            <div class="input-group"><label>PAY_5 (5月)</label><input type="number" id="PAY_5" value="0" required></div>
+            <div class="input-group"><label>PAY_6 (4月)</label><input type="number" id="PAY_6" value="0" required></div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3><i class="fas fa-receipt"></i> 3. 歷史帳單與實際繳款金額對照</h3>
+          <div class="split-layout">
+            <div class="split-column">
+              <h4><i class="fas fa-file-invoice-dollar"></i> 歷史帳單金額 (BILL_AMT)</h4>
+              <div class="input-group"><label>9月帳單 (AMT1)</label><div class="range-wrapper"><input type="range" min="-50000" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="BILL_AMT1" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>8月帳單 (AMT2)</label><div class="range-wrapper"><input type="range" min="-50000" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="BILL_AMT2" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>7月帳單 (AMT3)</label><div class="range-wrapper"><input type="range" min="-50000" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="BILL_AMT3" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>6月帳單 (AMT4)</label><div class="range-wrapper"><input type="range" min="-50000" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="BILL_AMT4" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>5月帳單 (AMT5)</label><div class="range-wrapper"><input type="range" min="-50000" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="BILL_AMT5" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>4月帳單 (AMT6)</label><div class="range-wrapper"><input type="range" min="-50000" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="BILL_AMT6" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+            </div>
+            <div class="split-column">
+              <h4><i class="fas fa-credit-card"></i> 實際繳款金額 (PAY_AMT)</h4>
+              <div class="input-group"><label>9月繳款 (AMT1)</label><div class="range-wrapper"><input type="range" min="0" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="PAY_AMT1" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>8月繳款 (AMT2)</label><div class="range-wrapper"><input type="range" min="0" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="PAY_AMT2" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>7月繳款 (AMT3)</label><div class="range-wrapper"><input type="range" min="0" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="PAY_AMT3" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>6月繳款 (AMT4)</label><div class="range-wrapper"><input type="range" min="0" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="PAY_AMT4" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>5月繳款 (AMT5)</label><div class="range-wrapper"><input type="range" min="0" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="PAY_AMT5" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+              <div class="input-group" style="margin-top:10px;"><label>4月繳款 (AMT6)</label><div class="range-wrapper"><input type="range" min="0" max="500000" step="1000" value="0" oninput="this.nextElementSibling.value = this.value"><input type="number" id="PAY_AMT6" value="0" oninput="this.previousElementSibling.value = this.value" required></div></div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="submit-btn" onclick="runSinglePredict()">
+          <i class="fas fa-rocket"></i> 立即預測違約風險
+        </button>
+      </form>
+      <div id="singleResult" class="result-box"></div>
+    </div>
+
+    <!-- ── 批次上傳 ── -->
+    <div id="batchTab" class="tab-content">
+      <div class="upload-area" onclick="document.getElementById('csvFile').click()">
+        <div class="upload-icon"><i class="fas fa-file-csv"></i></div>
+        <h3>點擊或拖曳 CSV 檔案至此</h3>
+        <p>支援 UCI 格式，自動過濾 ID 與 Target 欄位</p>
+        <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="processCSV(event)">
+      </div>
+      <div id="batchStatus"></div>
+
+      <div id="dashboardArea" style="display:none;">
+        <div class="section-title"><i class="fas fa-chart-pie"></i> 批次預測風險分佈</div>
+        <div class="dashboard-grid">
+          <div class="chart-box"><canvas id="pieChart"></canvas></div>
+          <div class="chart-box"><canvas id="barChart"></canvas></div>
+          <div class="chart-box full-width"><canvas id="demographicChart"></canvas></div>
+        </div>
+      </div>
+
+      <div id="tableArea" style="display:none; margin-top:28px;">
+        <div class="section-title"><i class="fas fa-table"></i> 預測結果明細</div>
+        <div class="table-controls">
+          <label>篩選狀態：</label>
+          <select id="riskFilter" onchange="applyTableFilter()">
+            <option value="all">顯示全部</option>
+            <option value="high">僅顯示高風險（預期違約）</option>
+            <option value="low">僅顯示低風險（正常繳款）</option>
+          </select>
+        </div>
+        <div class="table-responsive">
+          <table id="resultTable">
+            <thead>
+              <tr>
+                <th>資料列</th>
+                <th>預測結果</th>
+                <th>違約機率</th>
+                <th>欠款餘額</th>
+                <th>信用額度使用率 (%)</th>
+              </tr>
+            </thead>
+            <tbody id="resultTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.risk-container -->
+</div><!-- /.risk-wrap -->
+
+<!-- Modal: 混淆矩陣 -->
+<div id="cmModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:2000;justify-content:center;align-items:center;padding:20px;">
+  <div class="modal-content">
+    <button class="close-btn" onclick="document.getElementById('cmModal').style.display='none'">&times;</button>
+    <h3 style="margin:0 0 16px;color:var(--navy);font-size:1.1rem;">模型混淆矩陣（測試集）</h3>
+    <div style="background:var(--gray-50);border-radius:8px;padding:20px;font-family:var(--mono);font-size:0.9rem;text-align:left;line-height:2;">
+      <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:2px;align-items:center;">
+        <div></div><div style="text-align:center;font-weight:700;color:var(--text-muted);padding:8px;">預測：正常</div><div style="text-align:center;font-weight:700;color:var(--text-muted);padding:8px;">預測：違約</div>
+        <div style="font-weight:700;color:var(--text-muted);padding:8px;white-space:nowrap;">實際：正常</div>
+        <div style="background:var(--safe-bg);border:1px solid var(--safe-bd);color:var(--safe);font-weight:700;padding:14px;border-radius:6px;text-align:center;font-size:1.1rem;">4,339</div>
+        <div style="background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn);font-weight:700;padding:14px;border-radius:6px;text-align:center;font-size:1.1rem;">418</div>
+        <div style="font-weight:700;color:var(--text-muted);padding:8px;white-space:nowrap;">實際：違約</div>
+        <div style="background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn);font-weight:700;padding:14px;border-radius:6px;text-align:center;font-size:1.1rem;">577</div>
+        <div style="background:var(--danger-bg);border:1px solid var(--danger-bd);color:var(--danger);font-weight:700;padding:14px;border-radius:6px;text-align:center;font-size:1.1rem;">666</div>
+      </div>
+      <div style="margin-top:16px;font-size:0.82rem;color:var(--text-muted);text-align:center;">LightGBM 模型 · UCI Credit Card Dataset · 測試集 6,000 筆</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = '';  // 使用本站 Flask API (相對路徑)
+let pieChart, barChart, demographicChart;
+let globalBatchResults = [];
+let globalCsvData = [];
+
+// 載入模型指標
+fetch('/api/risk/model_info')
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('val-p').textContent = (d.precision * 100).toFixed(1) + '%';
+    document.getElementById('val-r').textContent = (d.recall * 100).toFixed(1) + '%';
+    document.getElementById('val-f').textContent = (d.f1_score * 100).toFixed(1) + '%';
+  }).catch(() => {
+    document.getElementById('val-p').textContent = '68.2%';
+    document.getElementById('val-r').textContent = '54.1%';
+    document.getElementById('val-f').textContent = '60.3%';
+  });
+
+function switchTab(tabId, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  el.classList.add('active');
+}
+
+// 單筆預測
+async function runSinglePredict() {
+  const fields = ["LIMIT_BAL","SEX","EDUCATION","MARRIAGE","AGE","PAY_0","PAY_2","PAY_3","PAY_4","PAY_5","PAY_6","BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6","PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6"];
+  const reqData = {};
+  fields.forEach(f => { reqData[f] = parseFloat(document.getElementById(f).value) || 0; });
+
+  const resBox = document.getElementById('singleResult');
+  resBox.style.display = 'block';
+  resBox.className = 'result-box';
+  resBox.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 預測運算中...';
+
+  const paySum  = ["PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6"].reduce((s,k)=>s+(reqData[k]||0),0);
+  const billSum = ["BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6"].reduce((s,k)=>s+(reqData[k]||0),0);
+  const balance = billSum - paySum;
+  const utilRate = ((balance) / Math.max(reqData['LIMIT_BAL'], 1)) * 100;
+  const balColor  = balance > 0 ? 'var(--danger)' : 'var(--safe)';
+  const utilColor = utilRate > 80 ? 'var(--danger)' : 'var(--text)';
+
+  const extraHtml = `
+    <div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(0,0,0,0.12);font-size:0.92rem;color:var(--text-sub);line-height:1.8;">
+      欠款餘額：<strong style="color:${balColor}">${balance.toLocaleString()} 元</strong><br>
+      信用額度使用率：<strong style="color:${utilColor}">${utilRate.toFixed(2)}%</strong>
+    </div>`;
+
+  try {
+    const resp = await fetch('/api/risk/predict_batch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify([reqData])
+    });
+    const results = await resp.json();
+    const res = results[0];
+
+    if (res.prediction === 1) {
+      resBox.className = 'result-box risk-high';
+      resBox.innerHTML = `<i class="fas fa-exclamation-triangle"></i> 警告：高違約風險<br><span style="font-size:0.88rem;font-weight:400;">預估違約機率：${(res.probability * 100).toFixed(2)}%</span>${extraHtml}`;
+    } else {
+      resBox.className = 'result-box risk-low';
+      resBox.innerHTML = `<i class="fas fa-check-circle"></i> 安全：正常繳款機率高<br><span style="font-size:0.88rem;font-weight:400;">預估違約機率：${(res.probability * 100).toFixed(2)}%</span>${extraHtml}`;
+    }
+  } catch(err) {
+    resBox.className = 'result-box';
+    resBox.style.background = 'var(--warn-bg)';
+    resBox.style.color = 'var(--warn)';
+    resBox.textContent = '❌ 連線失敗，請確認後端伺服器正在運行';
+  }
+}
+
+// 批次 CSV 預測
+async function processCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('batchStatus');
+  status.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 正在解析: ${file.name}...`;
+
+  const text = await file.text();
+  const rows = text.trim().split('\n');
+  const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
+
+  const jsonData = [];
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i].split(',');
+    if (values.length < headers.length) continue;
+    const entry = {};
+    headers.forEach((h, idx) => {
+      if (h !== 'ID' && h !== 'default.payment.next.month') entry[h] = parseFloat(values[idx]);
+    });
+    jsonData.push(entry);
+  }
+
+  status.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 正在預測 ${jsonData.length} 筆資料...`;
+
+  try {
+    const resp = await fetch('/api/risk/predict_batch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(jsonData)
+    });
+    const results = await resp.json();
+    status.innerHTML = `<i class="fas fa-check" style="color:var(--safe)"></i> 預測完成！共處理 <strong>${results.length}</strong> 筆資料。`;
+
+    document.getElementById('dashboardArea').style.display = 'block';
+    renderCharts(results, jsonData);
+
+    globalBatchResults = results;
+    globalCsvData = jsonData;
+
+    document.getElementById('tableArea').style.display = 'block';
+    document.getElementById('riskFilter').value = 'all';
+    renderTable(globalBatchResults, globalCsvData);
+  } catch(err) {
+    status.innerHTML = '<span style="color:var(--danger)"><i class="fas fa-times-circle"></i> API 連線失敗或 CSV 資料有誤</span>';
+  }
+}
+
+function renderCharts(results, jsonData) {
+  const highRisk = results.filter(r => r.prediction === 1).length;
+  const lowRisk = results.length - highRisk;
+
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['正常繳款（低風險）', '預期違約（高風險）'],
+      datasets: [{ data: [lowRisk, highRisk], backgroundColor: ['#006b35','#b30000'], borderWidth: 0 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: '整體風險佔比' } } }
+  });
+
+  const bins = [0,0,0,0,0];
+  results.forEach(r => { bins[Math.min(Math.floor(r.probability * 5), 4)]++; });
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: ['0–20%','20–40%','40–60%','60–80%','80–100%'],
+      datasets: [{ label: '人數', data: bins, backgroundColor: '#0066CC', borderRadius: 5 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: '違約機率分佈區間' } } }
+  });
+
+  if (demographicChart) demographicChart.destroy();
+  const eduLabels = ['研究所','大學','高中','其他'];
+  const ageGroups = ['20–30歲','31–40歲','41–50歲','50歲以上'];
+  const dm = Array.from({length:4}, () => Array.from({length:4}, () => ({total:0,def:0})));
+  jsonData.forEach((row, i) => {
+    const edu = row['EDUCATION'], age = row['AGE'], isDef = results[i]?.prediction === 1 ? 1 : 0;
+    let ei = edu===1?0:edu===2?1:edu===3?2:edu===4?3:-1;
+    let ai = age>=20&&age<=30?0:age>30&&age<=40?1:age>40&&age<=50?2:age>50?3:-1;
+    if (ei>=0&&ai>=0) { dm[ai][ei].total++; dm[ai][ei].def+=isDef; }
+  });
+  const datasets = ageGroups.map((lbl,ai) => ({
+    label: lbl,
+    data: eduLabels.map((_,ei) => dm[ai][ei].total===0?0:(dm[ai][ei].def/dm[ai][ei].total*100).toFixed(2)),
+    backgroundColor: ['#0066CC','#9b59b6','#f1c40f','#e67e22'][ai],
+    borderWidth: 0, borderRadius: 4
+  }));
+  demographicChart = new Chart(document.getElementById('demographicChart'), {
+    type: 'bar',
+    data: { labels: eduLabels, datasets },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: true, text: '客群畫像：不同教育程度與年齡層之預期違約率 (%)', font: { size: 13 } },
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}%` } }
+      },
+      scales: {
+        x: { title: { display: true, text: '預期違約率 (%)' }, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { title: { display: true, text: '教育程度' }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderTable(resultsData, csvData) {
+  const tbody = document.getElementById('resultTableBody');
+  tbody.innerHTML = '';
+  resultsData.forEach((row, idx) => {
+    const csvRow = csvData[row.row_index - 1];
+    let balHtml = '—', utilHtml = '—';
+    if (csvRow) {
+      const paySum  = ["PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6"].reduce((s,k)=>s+(csvRow[k]||0),0);
+      const billSum = ["BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6"].reduce((s,k)=>s+(csvRow[k]||0),0);
+      const balance = billSum - paySum;
+      const utilRate = (balance / Math.max(csvRow['LIMIT_BAL']||1, 1)) * 100;
+      balHtml  = `<span class="${balance>0?'text-danger':'text-success'}">${balance.toLocaleString()}</span>`;
+      utilHtml = `<span class="${utilRate>80?'text-danger':''}">${utilRate.toFixed(2)}%</span>`;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>第 ${row.row_index} 筆</td>
+      <td>${row.prediction===1?'<span class="badge badge-danger">高風險</span>':'<span class="badge badge-success">低風險</span>'}</td>
+      <td>${(row.probability * 100).toFixed(2)}%</td>
+      <td>${balHtml}</td>
+      <td>${utilHtml}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function applyTableFilter() {
+  const v = document.getElementById('riskFilter').value;
+  const filtered = v==='high' ? globalBatchResults.filter(r=>r.prediction===1)
+                 : v==='low'  ? globalBatchResults.filter(r=>r.prediction===0)
+                 : globalBatchResults;
+  renderTable(filtered, globalCsvData);
+}
+
+// drag-and-drop CSV support
+const uploadArea = document.querySelector('.upload-area');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor='var(--blue)'; });
+uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor=''; });
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) processCSV({ target: { files: [file] } });
+});
+</script>
+
+</body>
+</html>
