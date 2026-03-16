@@ -6,7 +6,10 @@
 <title>信守風控 CRIP — 風險評估儀表板</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/main.js" defer></script>
+
 <style>
 body { background: var(--gray-50); }
 
@@ -88,16 +91,15 @@ body { background: var(--gray-50); }
 </head>
 <body>
 
-<!-- ══ TOPNAV ══ -->
 <nav class="topnav">
   <div class="topnav-inner">
     <div class="nav-left">
-      <div class="nav-logo" onclick="window.location='/'">
+      <div class="nav-logo" onclick="window.location='index.html'">
         <span class="logo-text">CRIP</span>
       </div>
       <div style="display:flex;align-items:center;gap:4px;margin-left:8px;">
-        <a href="/" style="font-family:var(--sans);font-size:14px;font-weight:500;color:var(--text-sub);padding:8px 14px;text-decoration:none;border-radius:4px;">首頁</a>
-        <a href="/dashboard" style="font-family:var(--sans);font-size:14px;font-weight:600;color:var(--blue);padding:8px 14px;text-decoration:none;border-radius:4px;">儀表板</a>
+        <a href="index.html" style="font-family:var(--sans);font-size:14px;font-weight:500;color:var(--text-sub);padding:8px 14px;text-decoration:none;border-radius:4px;">首頁</a>
+        <a href="dashboard.html" style="font-family:var(--sans);font-size:14px;font-weight:600;color:var(--blue);padding:8px 14px;text-decoration:none;border-radius:4px;">儀表板</a>
       </div>
     </div>
     <div class="nav-right">
@@ -106,26 +108,20 @@ body { background: var(--gray-50); }
   </div>
 </nav>
 
-<!-- ══ SUBBAR ══ -->
-<div style="background:var(--white);border-bottom:1px solid var(--border);height:48px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;margin-top:64px;">
-  <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);">
-    <a href="/" style="color:var(--blue);font-weight:500;text-decoration:none;">首頁</a>
+<div class="dash-subbar" style="margin-top:64px;">
+  <div class="bc2">
+    <a href="index.html">首頁</a>
     <span style="color:var(--border)">/</span>
-    <strong style="color:var(--text);font-weight:500;">風險評估儀表板</strong>
+    <strong>風險評估儀表板</strong>
   </div>
-  <div style="display:flex;gap:8px;">
-    <span style="font-size:10px;color:var(--text-muted);padding:3px 10px;background:var(--gray-50);border:1px solid var(--border);border-radius:3px;letter-spacing:1px;" id="model-tag">LGBM PIPELINE</span>
-    <span style="font-size:10px;color:var(--safe);padding:3px 10px;background:var(--safe-bg);border:1px solid var(--safe-bd);border-radius:3px;letter-spacing:1px;">● LIVE MODEL</span>
-
+  <div class="dtags">
+    <span class="dtag" id="model-tag">LGBM PIPELINE</span>
+    <span class="dtag live">● LIVE MODEL</span>
   </div>
 </div>
 
-
-
-<!-- ══ MAIN LAYOUT ══ -->
 <div class="dash-layout">
 
-  <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div class="sb-head">
       <div class="sb-tag">Input Variables</div>
@@ -197,14 +193,11 @@ body { background: var(--gray-50); }
       </div>
     </div>
 
-
   </aside>
 
-  <!-- ── MAIN ── -->
   <main class="dash-main">
 
     <div class="g2">
-      <!-- 預測違約機率 -->
       <div class="card">
         <div class="ch"><div class="ch-bar"></div><div class="ch-title">預測違約機率 Default Prob.</div></div>
         <div class="cb">
@@ -216,7 +209,6 @@ body { background: var(--gray-50); }
         </div>
       </div>
 
-      <!-- 歷史特徵比對（移至上排右側）-->
       <div class="card">
         <div class="ch"><div class="ch-bar"></div><div class="ch-title">歷史特徵比對</div></div>
         <div class="cb" style="padding:0"><table class="ht" id="hist-grid"></table></div>
@@ -224,7 +216,6 @@ body { background: var(--gray-50); }
     </div>
 
     <div class="gm">
-      <!-- 自動標籤 & 主要因子（移至下排左側）-->
       <div class="card">
         <div class="ch"><div class="ch-bar"></div><div class="ch-title">自動標籤 &amp; 主要因子</div></div>
         <div class="cb">
@@ -236,7 +227,6 @@ body { background: var(--gray-50); }
         </div>
       </div>
 
-      <!-- 催收策略象限 -->
       <div class="card">
         <div class="ch"><div class="ch-bar"></div><div class="ch-title">風險 × 金額 象限定位 — 催收策略</div></div>
         <div class="cb">
@@ -258,10 +248,103 @@ body { background: var(--gray-50); }
       </div>
     </div>
 
+    <div class="card" style="margin-top: 24px;">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-title">CRM 16 Segment 差異化催收策略 (批次運算)</div>
+      </div>
+      <div class="cb">
+        <p style="font-size: 14px; color: var(--text-sub); margin-bottom: 20px; line-height: 1.6;">
+          請上傳客戶名單 CSV 檔案。系統將透過後端 AI 模型預測每位客戶的「違約機率」，並結合業務端的「最新欠款餘額」，自動將名單落入 <strong>16 宮格差異化催收矩陣</strong> 中，產出具備具體行動建議的派工作業名單。
+        </p>
+
+        <div style="background: var(--gray-50); border: 1.5px dashed var(--gray-400); border-radius: 8px; padding: 32px 20px; text-align: center; margin-bottom: 10px;">
+          <i class="fas fa-file-csv" style="font-size: 36px; color: var(--blue); margin-bottom: 12px;"></i>
+          <h4 style="font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 6px;">上傳名單進行模型分析</h4>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">支援 .csv 格式，包含 LIMIT_BAL, AGE, PAY 等特徵欄位</p>
+          
+          <input type="file" id="csv-upload" accept=".csv" style="display: none;" onchange="document.getElementById('file-name').textContent = this.files[0] ? this.files[0].name : '尚未選擇檔案'">
+          
+          <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+            <button class="btn-outline-pill" onclick="document.getElementById('csv-upload').click()">
+              <i class="fas fa-folder-open"></i> 選擇檔案
+            </button>
+            <button id="btn-upload" class="btn-solid-pill" onclick="uploadCSV()">
+              <i class="fas fa-bolt"></i> 執行 AI 批次預測
+            </button>
+          </div>
+          <div id="file-name" style="font-size: 12px; color: var(--text-sub); margin-top: 14px; font-weight: 500;">尚未選擇檔案</div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
+<div id="batch-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 31, 60, 0.6); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+  
+  <div class="modal-content" style="background: var(--white); width: 100%; max-width: 1000px; max-height: 90vh; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+    
+    <div style="padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--gray-50);">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <i class="fas fa-table" style="color: var(--blue); font-size: 20px;"></i>
+        <h3 style="font-size: 18px; font-weight: 700; color: var(--navy);">
+          批次預測與催收派工單 
+          <span id="modal-total-count" style="font-size: 14px; font-weight: 500; color: var(--text-muted);">(共 0 筆)</span>
+        </h3>
+      </div>
+      
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <button onclick="exportBatchCSV()" class="btn-solid-pill" style="padding: 6px 16px; font-size: 13px;">
+          <i class="fas fa-download"></i> 匯出 16 宮格策略 CSV
+        </button>
+        <button onclick="closeModal()" style="background: transparent; border: none; font-size: 22px; color: var(--text-muted); cursor: pointer; padding: 0 8px;">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="modal-scroll-area" style="flex: 1; overflow-y: auto; padding: 20px 24px;">
+      
+      <div id="customer-insight" style="display: none; background: var(--gray-50); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center;">
+        <div>
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 1px;">客戶 ID: <span id="insight-id" style="color: var(--navy);"></span></div>
+          <div id="insight-strategy" style="font-size: 14px; line-height: 1.6;"></div>
+        </div>
+        <div style="height: 180px;">
+          <canvas id="modalRadarChart"></canvas>
+        </div>
+      </div>
+
+      <div style="border: 1px solid var(--border); border-radius: 8px; overflow-x: auto;">
+        <table class="ht" style="min-width: 800px; width: 100%; text-align: left;">
+          <thead style="background: var(--gray-50); border-bottom: 1px solid var(--border);">
+            <tr>
+              <th style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--text-sub);">客戶 ID</th>
+              <th style="padding: 12px 16px; text-align: right; font-size: 12px; font-weight: 600; color: var(--text-sub);">信用額度</th>
+              <th style="padding: 12px 16px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-sub);">年齡</th>
+              <th style="padding: 12px 16px; text-align: right; font-size: 12px; font-weight: 600; color: var(--blue); cursor: pointer;" onclick="sortBatchByProb()">
+                違約機率 <i class="fas fa-sort"></i>
+              </th>
+              <th style="padding: 12px 16px; text-align: right; font-size: 12px; font-weight: 600; color: var(--text-sub);">欠款餘額</th>
+              <th style="padding: 12px 16px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-sub);">雷達圖</th>
+            </tr>
+          </thead>
+          <tbody id="batch-table-body">
+            <tr id="batch-empty-row"><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">無資料</td></tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div id="pagination-controls" style="display: flex; justify-content: center; gap: 6px; margin-top: 20px;"></div>
+    </div>
+  </div>
+</div>
+
 <script>
+// ⚠️ 將此處的 fetch 網址替換為您的 HF URL，確保單筆即時預測功能依然生效
+const HF_API_URL = "https://holself2868-credit-risk-api.hf.space";
+
 const QUAD_INFO = {
   hh:{ title:'高風險 × 高金額', desc:'違約機率高且金額大，ROI 最高。優先投入專業人工催收人員。', action:'人工催收' },
   hl:{ title:'高風險 × 低金額', desc:'違約機率高但金額小，人工催收 ROI 低。建議 App 推播、簡訊等自動化方式。', action:'自動化催收' },
@@ -295,45 +378,50 @@ function selectQuad(q) {
 
 function getSidebarValues() {
   return {
-    limit_bal: +document.getElementById('sl-limit').value,
-    age:       +document.getElementById('sl-age').value,
-    pay0:      +document.getElementById('sl-pay').value,
+    LIMIT_BAL: +document.getElementById('sl-limit').value,
+    AGE:       +document.getElementById('sl-age').value,
+    PAY_0:     +document.getElementById('sl-pay').value,
     hist:      +document.getElementById('sl-history').value,
     util:      +document.getElementById('sl-util').value,
-    sex:       +document.getElementById('sl-sex').value,
-    education: +document.getElementById('sl-edu').value,
-    marriage:  +document.getElementById('sl-marriage').value
+    SEX:       +document.getElementById('sl-sex').value,
+    EDUCATION: +document.getElementById('sl-edu').value,
+    MARRIAGE:  +document.getElementById('sl-marriage').value
   };
 }
 
 function updateLabels() {
   const v=getSidebarValues();
-  document.getElementById('val-limit').textContent=v.limit_bal.toLocaleString();
-  document.getElementById('val-age').textContent=v.age;
+  document.getElementById('val-limit').textContent=v.LIMIT_BAL.toLocaleString();
+  document.getElementById('val-age').textContent=v.AGE;
   document.getElementById('val-history').textContent=v.hist;
   document.getElementById('val-util').textContent=v.util+'%';
   const pl={'-2':'提前還款','-1':'提前還款','0':'準時','1':'逾期 1 月','2':'逾期 2 月','3':'逾期 3+月'};
-  document.getElementById('val-pay').textContent=pl[String(v.pay0)]||'準時';
+  document.getElementById('val-pay').textContent=pl[String(v.PAY_0)]||'準時';
 }
 
 function renderPrediction(data) {
-  const prob=data.prob;
+  // 將後端回傳的 data.probability 直接轉成畫布需要的百分比
+  const prob = data.probability || data.prob || 0;
   drawGauge(prob);
   document.getElementById('gauge-pct').textContent=prob+'%';
+  
   const badge=document.getElementById('risk-badge'),bar=document.getElementById('abar'),icon=document.getElementById('ab-icon'),text=document.getElementById('ab-text');
   badge.className='rbadge';bar.className='abar';
   if(prob<35){badge.classList.add('rb-safe');badge.textContent='低違約風險';bar.classList.add('ab-s');icon.className='fas fa-circle-check';icon.style.color='var(--safe)';text.textContent='優質低風險客戶';}
   else if(prob<65){badge.classList.add('rb-warn');badge.textContent='中度風險 MODERATE';bar.classList.add('ab-w');icon.className='fas fa-triangle-exclamation';icon.style.color='var(--warn)';text.textContent='觀察中邊際客戶';}
   else{badge.classList.add('rb-danger');badge.textContent='高違約風險';bar.classList.add('ab-d');icon.className='fas fa-circle-exclamation';icon.style.color='var(--danger)';text.textContent='高風險優先催收客戶';}
+  
   document.getElementById('factors-container').innerHTML=Object.entries(data.factors||{}).map(([n,v])=>{
     const c=FACTOR_COLORS[n]||'#0066CC';
     return `<div class="fr"><div class="fn">${n}</div><div class="fp">${v}%</div><div class="fb"><div class="fbf" style="width:${v}%;background:${c}"></div></div></div>`;
   }).join('');
+  
   document.getElementById('hist-grid').innerHTML=(data.hist_insights||[]).map(h=>`<tr><td class="hv">${h.var}</td><td class="hd">${h.desc}</td></tr>`).join('');
   selectQuad(data.quad||'ll');
-  const isLive=data.model_used==='lightgbm';
+  
+  const isLive = data.mode === 'live';
   document.getElementById('model-status-badge').className='model-badge '+(isLive?'mb-live':'mb-fallback');
-  document.getElementById('model-status-badge').innerHTML=isLive?'● LightGBM LIVE':'⚠ Heuristic Mode';
+  document.getElementById('model-status-badge').innerHTML=isLive?'<span class="spin"></span> LIVE MODEL':'⚠ FALLBACK MODE';
   document.getElementById('model-tag').textContent=isLive?'LGBM PIPELINE':'FALLBACK MODEL';
 }
 
@@ -342,12 +430,19 @@ function updateAll() {
   clearTimeout(_t);
   _t=setTimeout(async()=>{
     try {
-      const res=await fetch('/api/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSidebarValues())});
-      renderPrediction(await res.json());
-    } catch(e){console.error(e);}
+      // 發送單筆預測請求到 HF API
+      const res = await fetch(`${HF_API_URL}/api/predict`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(getSidebarValues())
+      });
+      const data = await res.json();
+      if(data.success) {
+          renderPrediction(data);
+      }
+    } catch(e){console.error('預測連線失敗:', e);}
   },120);
 }
-
 
 // init
 updateLabels();
