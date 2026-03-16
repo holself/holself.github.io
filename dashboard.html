@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信守風控 CRIP — 風險評估儀表板</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+body { background: var(--gray-50); }
+
+/* ── Portfolio KPI strip ── */
+.port-strip { background: var(--white); border-bottom: 1px solid var(--border); }
+.port-strip-inner { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 3px solid var(--blue); }
+.port-cell { padding: 14px 20px; border-right: 1px solid var(--border); }
+.port-cell:last-child { border-right: none; }
+.port-num { font-size: 22px; font-weight: 700; line-height: 1; color: var(--blue); }
+.port-num.danger { color: var(--danger); }
+.port-num.warn   { color: var(--warn);   }
+.port-num.safe   { color: var(--safe);   }
+.port-lbl { font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-top: 3px; }
+.port-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+.model-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; letter-spacing: 1px; padding: 3px 10px; border-radius: 3px; text-transform: uppercase; }
+.mb-live     { background: var(--safe-bg); color: var(--safe); border: 1px solid var(--safe-bd); }
+.mb-fallback { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-bd); }
+.spin { display:inline-block; width:10px; height:10px; border:2px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Sidebar ── */
+.sidebar { overflow-y: auto; height: calc(100vh - 64px - 48px - 70px); }
+
+/* ── Gauge ── */
+.gw { display:flex; flex-direction:column; align-items:center; padding: 8px 0; }
+.gpct { font-size: 44px; font-weight: 700; color: var(--navy); line-height: 1; margin-top: -2px; }
+.rbadge { margin-top: 10px; font-size: 12px; font-weight: 600; padding: 5px 18px; border-radius: 20px; }
+.rb-safe   { background: var(--safe-bg);   color: var(--safe);   border: 1px solid var(--safe-bd);   }
+.rb-warn   { background: var(--warn-bg);   color: var(--warn);   border: 1px solid var(--warn-bd);   }
+.rb-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-bd); }
+
+/* ── Alert bar ── */
+.abar { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 6px; margin-bottom: 14px; border-left: 4px solid; }
+.ab-s { background: var(--safe-bg);   border-color: var(--safe);   }
+.ab-w { background: var(--warn-bg);   border-color: var(--warn);   }
+.ab-d { background: var(--danger-bg); border-color: var(--danger); }
+.abt  { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+
+/* ── Factor bars ── */
+.fr { display: grid; grid-template-columns: 1fr 44px 100px; align-items: center; gap: 8px; margin-bottom: 10px; }
+.fn { font-size: 12px; color: var(--text-sub); }
+.fp { font-size: 11px; color: var(--text-muted); text-align: right; }
+.fb { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; }
+.fbf { height: 100%; border-radius: 3px; transition: width .45s ease; }
+
+/* ── History table ── */
+.ht { width: 100%; border-collapse: collapse; }
+.ht td { padding: 9px 16px; border-bottom: 1px solid var(--gray-100); font-size: 12px; vertical-align: top; }
+.ht tr:last-child td { border-bottom: none; }
+.ht tr:hover td { background: var(--gray-50); }
+.hv { font-size: 10px; color: var(--blue); font-weight: 600; letter-spacing: 1px; white-space: nowrap; }
+.hd { color: var(--text-sub); line-height: 1.55; }
+
+/* ── Quadrant ── */
+.qw { display: grid; grid-template-columns: 190px 1fr; gap: 14px; align-items: start; }
+.qg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.qc { background: var(--gray-50); border: 1px solid var(--border); border-radius: 6px; padding: 11px 10px; cursor: pointer; transition: all .15s; }
+.qc:hover, .qc.active { border-color: var(--blue); background: var(--blue-lt); }
+.qc.active { border-width: 2px; }
+.qi { font-size: 17px; margin-bottom: 3px; }
+.ql { font-size: 10px; color: var(--text-sub); line-height: 1.4; margin-bottom: 5px; }
+.qs { font-size: 9px; color: var(--blue); letter-spacing: 1px; font-weight: 600; text-transform: uppercase; }
+.qd { background: var(--gray-50); border: 1px solid var(--border); border-radius: 6px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.qde { font-size: 10px; font-weight: 600; letter-spacing: 2px; color: var(--blue); text-transform: uppercase; }
+.qdt { font-size: 16px; font-weight: 700; color: var(--navy); }
+.qdd { font-size: 12px; color: var(--text-sub); line-height: 1.75; }
+.qdp { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 12px; font-weight: 600; color: var(--blue); background: var(--blue-lt); border: 1px solid rgba(0,102,204,.3); padding: 5px 14px; border-radius: 20px; }
+
+/* ── Card grid ── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.gm { display: grid; grid-template-columns: 1fr 1.6fr; gap: 14px; }
+
+/* ── Portfolio quad mini ── */
+.quad-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.qm-cell { background: var(--gray-50); border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; text-align: center; }
+.qm-num { font-size: 18px; font-weight: 700; color: var(--navy); line-height: 1; }
+.qm-lbl { font-size: 9px; color: var(--text-muted); letter-spacing: .5px; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ══ TOPNAV ══ -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <div class="nav-left">
+      <div class="nav-logo" onclick="window.location='/'">
+        <span class="logo-text">CRIP</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-left:8px;">
+        <a href="/" style="font-family:var(--sans);font-size:14px;font-weight:500;color:var(--text-sub);padding:8px 14px;text-decoration:none;border-radius:4px;">首頁</a>
+        <a href="/dashboard" style="font-family:var(--sans);font-size:14px;font-weight:600;color:var(--blue);padding:8px 14px;text-decoration:none;border-radius:4px;">儀表板</a>
+      </div>
+    </div>
+    <div class="nav-right">
+      <div id="model-status-badge" class="model-badge mb-fallback"><span class="spin"></span>&nbsp;載入中</div>
+    </div>
+  </div>
+</nav>
+
+<!-- ══ SUBBAR ══ -->
+<div style="background:var(--white);border-bottom:1px solid var(--border);height:48px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;margin-top:64px;">
+  <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);">
+    <a href="/" style="color:var(--blue);font-weight:500;text-decoration:none;">首頁</a>
+    <span style="color:var(--border)">/</span>
+    <strong style="color:var(--text);font-weight:500;">風險評估儀表板</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <span style="font-size:10px;color:var(--text-muted);padding:3px 10px;background:var(--gray-50);border:1px solid var(--border);border-radius:3px;letter-spacing:1px;" id="model-tag">LGBM PIPELINE</span>
+    <span style="font-size:10px;color:var(--safe);padding:3px 10px;background:var(--safe-bg);border:1px solid var(--safe-bd);border-radius:3px;letter-spacing:1px;">● LIVE MODEL</span>
+
+  </div>
+</div>
+
+
+
+<!-- ══ MAIN LAYOUT ══ -->
+<div class="dash-layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sb-head">
+      <div class="sb-tag">Input Variables</div>
+      <div class="sb-title">控制台</div>
+    </div>
+
+    <div class="ctrl-group">
+      <div class="cg-title">Financial</div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">信用額度 LIMIT_BAL</span><span class="ci-val" id="val-limit">50,000</span></div>
+        <div class="ci-hint">Default 較常出現於低額度群體</div>
+        <input type="range" id="sl-limit" min="10000" max="500000" step="10000" value="50000" oninput="updateAll()">
+      </div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">額度使用率 %</span><span class="ci-val" id="val-util">30%</span></div>
+        <input type="range" id="sl-util" min="0" max="100" step="5" value="30" oninput="updateAll()">
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <div class="cg-title">Demographics</div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">年齡 Age</span><span class="ci-val" id="val-age">25</span></div>
+        <input type="range" id="sl-age" min="18" max="75" step="1" value="25" oninput="updateAll()">
+      </div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">性別 Sex</span></div>
+        <select class="ctrl-select" id="sl-sex" onchange="updateAll()">
+          <option value="2">女性 (Female)</option>
+          <option value="1">男性 (Male)</option>
+        </select>
+      </div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">教育程度 Education</span></div>
+        <select class="ctrl-select" id="sl-edu" onchange="updateAll()">
+          <option value="1">研究所 (Graduate)</option>
+          <option value="2" selected>大學 (University)</option>
+          <option value="3">高中 (High School)</option>
+          <option value="4">其他 (Other)</option>
+        </select>
+      </div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">婚姻狀況 Marriage</span></div>
+        <select class="ctrl-select" id="sl-marriage" onchange="updateAll()">
+          <option value="2" selected>單身 (Single)</option>
+          <option value="1">已婚 (Married)</option>
+          <option value="3">其他 (Other)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <div class="cg-title">Repayment Behaviour</div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">最近還款 PAY_0</span><span class="ci-val" id="val-pay" style="font-size:11px">準時</span></div>
+        <div class="ci-hint">負值／零代表準時還款</div>
+        <select class="ctrl-select" id="sl-pay" onchange="updateAll()">
+          <option value="-2">提前還款 (−2)</option>
+          <option value="-1">提前還款 (−1)</option>
+          <option value="0" selected>準時還款 (0)</option>
+          <option value="1">逾期 1 個月 (+1)</option>
+          <option value="2">逾期 2 個月 (+2)</option>
+          <option value="3">逾期 3 個月以上 (+3)</option>
+        </select>
+      </div>
+      <div class="ci">
+        <div class="ci-row"><span class="ci-name">逾期歷史次數 HIST</span><span class="ci-val" id="val-history">0</span></div>
+        <input type="range" id="sl-history" min="0" max="6" step="1" value="0" oninput="updateAll()">
+      </div>
+    </div>
+
+
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="dash-main">
+
+    <div class="g2">
+      <!-- 預測違約機率 -->
+      <div class="card">
+        <div class="ch"><div class="ch-bar"></div><div class="ch-title">預測違約機率 Default Prob.</div></div>
+        <div class="cb">
+          <div class="gw">
+            <canvas id="gauge" width="220" height="116"></canvas>
+            <div class="gpct" id="gauge-pct">—%</div>
+            <div class="rbadge rb-safe" id="risk-badge">低違約風險</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 歷史特徵比對（移至上排右側）-->
+      <div class="card">
+        <div class="ch"><div class="ch-bar"></div><div class="ch-title">歷史特徵比對</div></div>
+        <div class="cb" style="padding:0"><table class="ht" id="hist-grid"></table></div>
+      </div>
+    </div>
+
+    <div class="gm">
+      <!-- 自動標籤 & 主要因子（移至下排左側）-->
+      <div class="card">
+        <div class="ch"><div class="ch-bar"></div><div class="ch-title">自動標籤 &amp; 主要因子</div></div>
+        <div class="cb">
+          <div class="abar ab-s" id="abar">
+            <i class="fas fa-circle-check" id="ab-icon" style="color:var(--safe)"></i>
+            <span class="abt" id="ab-text">優質低風險客戶</span>
+          </div>
+          <div id="factors-container"></div>
+        </div>
+      </div>
+
+      <!-- 催收策略象限 -->
+      <div class="card">
+        <div class="ch"><div class="ch-bar"></div><div class="ch-title">風險 × 金額 象限定位 — 催收策略</div></div>
+        <div class="cb">
+          <div class="qw">
+            <div class="qg">
+              <div class="qc" id="q-hh" onclick="selectQuad('hh')"><div class="qi">⚠</div><div class="ql">高風險<br>× 高金額</div><div class="qs">人工催收</div></div>
+              <div class="qc" id="q-lh" onclick="selectQuad('lh')"><div class="qi">✓</div><div class="ql">低風險<br>× 高金額</div><div class="qs">定期監控</div></div>
+              <div class="qc" id="q-hl" onclick="selectQuad('hl')"><div class="qi">◎</div><div class="ql">高風險<br>× 低金額</div><div class="qs">自動化</div></div>
+              <div class="qc active" id="q-ll" onclick="selectQuad('ll')"><div class="qi">–</div><div class="ql">低風險<br>× 低金額</div><div class="qs">觀察即可</div></div>
+            </div>
+            <div class="qd">
+              <div class="qde">Collection Strategy</div>
+              <div class="qdt" id="qd-title">低風險 × 低金額</div>
+              <div class="qdd" id="qd-desc">風險低且金額小，催收資源投入不具效益。設為觀察清單，等待狀態變化再行動。</div>
+              <div class="qdp"><i class="fas fa-arrow-right"></i><span id="qd-action">觀察即可</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const QUAD_INFO = {
+  hh:{ title:'高風險 × 高金額', desc:'違約機率高且金額大，ROI 最高。優先投入專業人工催收人員。', action:'人工催收' },
+  hl:{ title:'高風險 × 低金額', desc:'違約機率高但金額小，人工催收 ROI 低。建議 App 推播、簡訊等自動化方式。', action:'自動化催收' },
+  lh:{ title:'低風險 × 高金額', desc:'金額大但機率低，定期監控防止狀態惡化。', action:'定期監控' },
+  ll:{ title:'低風險 × 低金額', desc:'風險低且金額小，催收資源投入不具效益。設為觀察清單即可。', action:'觀察即可' }
+};
+const FACTOR_COLORS = {'信用額度偏低':'#b30000','還款紀錄':'#006b35','逾期次數':'#8a5200','額度使用率':'#0066CC'};
+let _t = null;
+
+function drawGauge(pct) {
+  const c=document.getElementById('gauge'),ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const cx=c.width/2,cy=c.height-8,r=88;
+  ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,2*Math.PI);ctx.lineWidth=14;ctx.strokeStyle='#f0f2f6';ctx.lineCap='round';ctx.stroke();
+  const v=Math.min(Math.max(pct,0),100)/100,endA=Math.PI+v*Math.PI;
+  const color=pct>65?'#b30000':pct>35?'#c87000':'#006b35';
+  ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,endA);ctx.lineWidth=14;ctx.strokeStyle=color;ctx.lineCap='round';ctx.stroke();
+  const nx=cx+(r-4)*Math.cos(Math.PI+v*Math.PI),ny=cy+(r-4)*Math.sin(Math.PI+v*Math.PI);
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(nx,ny);ctx.lineWidth=2.5;ctx.strokeStyle='#1e2d45';ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,5,0,2*Math.PI);ctx.fillStyle='#0066CC';ctx.fill();
+}
+
+function selectQuad(q) {
+  document.querySelectorAll('.qc').forEach(c=>c.classList.remove('active'));
+  document.getElementById('q-'+q).classList.add('active');
+  const i=QUAD_INFO[q];
+  document.getElementById('qd-title').textContent=i.title;
+  document.getElementById('qd-desc').textContent=i.desc;
+  document.getElementById('qd-action').textContent=i.action;
+}
+
+function getSidebarValues() {
+  return {
+    limit_bal: +document.getElementById('sl-limit').value,
+    age:       +document.getElementById('sl-age').value,
+    pay0:      +document.getElementById('sl-pay').value,
+    hist:      +document.getElementById('sl-history').value,
+    util:      +document.getElementById('sl-util').value,
+    sex:       +document.getElementById('sl-sex').value,
+    education: +document.getElementById('sl-edu').value,
+    marriage:  +document.getElementById('sl-marriage').value
+  };
+}
+
+function updateLabels() {
+  const v=getSidebarValues();
+  document.getElementById('val-limit').textContent=v.limit_bal.toLocaleString();
+  document.getElementById('val-age').textContent=v.age;
+  document.getElementById('val-history').textContent=v.hist;
+  document.getElementById('val-util').textContent=v.util+'%';
+  const pl={'-2':'提前還款','-1':'提前還款','0':'準時','1':'逾期 1 月','2':'逾期 2 月','3':'逾期 3+月'};
+  document.getElementById('val-pay').textContent=pl[String(v.pay0)]||'準時';
+}
+
+function renderPrediction(data) {
+  const prob=data.prob;
+  drawGauge(prob);
+  document.getElementById('gauge-pct').textContent=prob+'%';
+  const badge=document.getElementById('risk-badge'),bar=document.getElementById('abar'),icon=document.getElementById('ab-icon'),text=document.getElementById('ab-text');
+  badge.className='rbadge';bar.className='abar';
+  if(prob<35){badge.classList.add('rb-safe');badge.textContent='低違約風險';bar.classList.add('ab-s');icon.className='fas fa-circle-check';icon.style.color='var(--safe)';text.textContent='優質低風險客戶';}
+  else if(prob<65){badge.classList.add('rb-warn');badge.textContent='中度風險 MODERATE';bar.classList.add('ab-w');icon.className='fas fa-triangle-exclamation';icon.style.color='var(--warn)';text.textContent='觀察中邊際客戶';}
+  else{badge.classList.add('rb-danger');badge.textContent='高違約風險';bar.classList.add('ab-d');icon.className='fas fa-circle-exclamation';icon.style.color='var(--danger)';text.textContent='高風險優先催收客戶';}
+  document.getElementById('factors-container').innerHTML=Object.entries(data.factors||{}).map(([n,v])=>{
+    const c=FACTOR_COLORS[n]||'#0066CC';
+    return `<div class="fr"><div class="fn">${n}</div><div class="fp">${v}%</div><div class="fb"><div class="fbf" style="width:${v}%;background:${c}"></div></div></div>`;
+  }).join('');
+  document.getElementById('hist-grid').innerHTML=(data.hist_insights||[]).map(h=>`<tr><td class="hv">${h.var}</td><td class="hd">${h.desc}</td></tr>`).join('');
+  selectQuad(data.quad||'ll');
+  const isLive=data.model_used==='lightgbm';
+  document.getElementById('model-status-badge').className='model-badge '+(isLive?'mb-live':'mb-fallback');
+  document.getElementById('model-status-badge').innerHTML=isLive?'● LightGBM LIVE':'⚠ Heuristic Mode';
+  document.getElementById('model-tag').textContent=isLive?'LGBM PIPELINE':'FALLBACK MODEL';
+}
+
+function updateAll() {
+  updateLabels();
+  clearTimeout(_t);
+  _t=setTimeout(async()=>{
+    try {
+      const res=await fetch('/api/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getSidebarValues())});
+      renderPrediction(await res.json());
+    } catch(e){console.error(e);}
+  },120);
+}
+
+
+// init
+updateLabels();
+drawGauge(10);
+updateAll();
+</script>
+</body>
+</html>
